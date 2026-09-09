@@ -4,6 +4,7 @@ use anyhow::{bail, ensure, Context, Result};
 use byteorder::{LittleEndian, ReadBytesExt};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
@@ -239,8 +240,13 @@ fn parse_gguf(file: &mut File, file_len: u64) -> Result<ModelIndex> {
         }
     }
     let mut infos = Vec::with_capacity(tensor_count as usize);
+    let mut names = HashSet::with_capacity(tensor_count as usize);
     for _ in 0..tensor_count {
         let name = read_string(file)?;
+        ensure!(
+            names.insert(name.clone()),
+            "duplicate GGUF tensor name: {name}"
+        );
         let rank = file.read_u32::<LittleEndian>()?;
         ensure!(rank <= 8, "invalid GGUF rank");
         let mut shape = Vec::with_capacity(rank as usize);
