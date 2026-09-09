@@ -1,0 +1,14 @@
+[package]
+name = "ts-p2p"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ts-core = { path = "../ts-core" }
+serde.workspace = true
+sha2 = "0.10"
+libp2p = { version = "0.56", features = ["tokio", "quic", "tcp", "noise", "yamux", "mdns", "kad", "identify", "request-response", "cbor"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+anyhow.workspace = true
+futures = "0.3"

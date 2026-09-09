@@ -1,0 +1,7 @@
+/target/
+*.tswarm
+*.partial
+.env
+.env.*
+!.env.example
+
