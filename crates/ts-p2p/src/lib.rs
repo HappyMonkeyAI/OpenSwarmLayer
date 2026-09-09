@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap, HashSet};
-use ts_core::{sha256, Hash32};
+use ts_core::{sha256, Hash32, Manifest};
 
 #[derive(libp2p::swarm::NetworkBehaviour)]
 #[behaviour(prelude = "libp2p::swarm::derive_prelude")]
@@ -24,6 +24,28 @@ pub struct ChunkProvider {
 }
 
 impl ChunkProvider {
+    pub fn from_manifest(
+        store: &ts_store::ObjectStore,
+        manifest: &Manifest,
+    ) -> anyhow::Result<Self> {
+        anyhow::ensure!(manifest.verify_root(), "manifest root verification failed");
+        let mut provider = Self::default();
+        provider.insert_manifest(manifest.root, manifest.to_bytes());
+        for tensor in &manifest.tensors {
+            for chunk in &tensor.chunks {
+                let bytes = store.get(chunk.hash)?;
+                anyhow::ensure!(
+                    bytes.len() as u64 == chunk.length,
+                    "stored chunk length mismatch"
+                );
+                provider
+                    .insert_chunk(tensor.tensor_hash, chunk.index, chunk.hash, bytes)
+                    .map_err(|error| anyhow::anyhow!("invalid stored chunk: {error:?}"))?;
+            }
+        }
+        Ok(provider)
+    }
+
     pub fn insert_manifest(&mut self, hash: Hash32, bytes: Vec<u8>) {
         self.manifests.insert(hash, bytes);
     }
@@ -507,6 +529,55 @@ mod tests {
                 code: PeerErrorCode::TooLarge,
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn provider_inventory_loads_verified_manifest_chunks_from_store() {
+        let root = tempfile::tempdir().unwrap();
+        let store = ts_store::ObjectStore::open(root.path()).unwrap();
+        let payload = b"chunk";
+        let chunk_hash = sha256(payload);
+        store.put_verified(chunk_hash, payload).unwrap();
+        let tensor_hash = sha256(b"tensor-identity");
+        let manifest = Manifest::new(
+            ts_core::ArtifactFormat::Safetensors,
+            5,
+            vec![ts_core::TensorNode {
+                descriptor: ts_core::TensorDescriptor {
+                    name: "weight".into(),
+                    shape: vec![5],
+                    dtype: "U8".into(),
+                    byte_len: 5,
+                },
+                tensor_hash,
+                chunks: vec![ts_core::ChunkRef {
+                    index: 0,
+                    offset: 0,
+                    length: 5,
+                    hash: chunk_hash,
+                }],
+            }],
+            vec![],
+        );
+        let provider = ChunkProvider::from_manifest(&store, &manifest).unwrap();
+        assert!(matches!(
+            provider.respond(PeerRequest::GetManifest {
+                manifest_hash: manifest.root
+            }),
+            PeerResponse::Manifest { .. }
+        ));
+        assert!(matches!(
+            provider.respond(PeerRequest::GetChunks {
+                tensor_hash,
+                chunks: vec![ChunkRequest {
+                    request_id: 1,
+                    tensor_hash,
+                    chunk_index: 0,
+                    expected_hash: chunk_hash
+                }]
+            }),
+            PeerResponse::Chunk { .. }
         ));
     }
 

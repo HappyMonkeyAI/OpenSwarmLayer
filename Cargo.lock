@@ -3123,6 +3123,7 @@ dependencies = [
  "ts-format",
  "ts-p2p",
  "ts-proxy",
+ "ts-store",
 ]
 
 [[package]]
@@ -3157,8 +3158,10 @@ dependencies = [
  "libp2p",
  "serde",
  "sha2",
+ "tempfile",
  "tokio",
  "ts-core",
+ "ts-store",
 ]
 
 [[package]]

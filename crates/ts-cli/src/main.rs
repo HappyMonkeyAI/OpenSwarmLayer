@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 fn usage() {
-    eprintln!("usage:\n  ts-cli node\n  ts-cli proxy [bind] <root>\n  ts-cli inspect <model>\n  ts-cli manifest <model> <output.tswarm>\n  ts-cli verify <model> <manifest.tswarm>\n  ts-cli diff <old.tswarm> <new.tswarm>");
+    eprintln!("usage:\n  ts-cli node [manifest.tswarm] [store-root]\n  ts-cli proxy [bind] <root>\n  ts-cli inspect <model>\n  ts-cli manifest <model> <output.tswarm>\n  ts-cli verify <model> <manifest.tswarm>\n  ts-cli diff <old.tswarm> <new.tswarm>");
 }
 
 #[tokio::main]
@@ -13,8 +13,23 @@ async fn main() -> Result<()> {
     let command = args.next().and_then(|value| value.into_string().ok());
     match command.as_deref() {
         Some("node") => {
-            let swarm = ts_p2p::build_lan_swarm()?;
-            ts_p2p::run_lan_node(swarm).await?;
+            let mut swarm = ts_p2p::build_lan_swarm()?;
+            let provider = match args.next() {
+                Some(manifest_path) => {
+                    let manifest: ts_core::Manifest =
+                        serde_cbor::from_slice(&fs::read(manifest_path)?)?;
+                    let store_root = PathBuf::from(args.next().context("missing store root")?);
+                    let store = ts_store::ObjectStore::open(store_root)?;
+                    let provider = ts_p2p::ChunkProvider::from_manifest(&store, &manifest)?;
+                    ts_p2p::publish_manifest(&mut swarm, &manifest.root)?;
+                    for tensor in &manifest.tensors {
+                        ts_p2p::publish_tensor(&mut swarm, &tensor.tensor_hash)?;
+                    }
+                    provider
+                }
+                None => ts_p2p::ChunkProvider::default(),
+            };
+            ts_p2p::run_lan_node_with_provider(swarm, provider).await?;
         }
         Some("proxy") => {
             let bind = args

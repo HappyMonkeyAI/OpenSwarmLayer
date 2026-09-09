@@ -12,6 +12,12 @@ parse -> manifest -> verified cache -> LAN transfer -> HTTP/WebSeed proxy
 
 See [PLAN.md](PLAN.md) for milestones and [TASKS.md](TASKS.md) for the executable task board.
 
+To run a seeding node from a manifest and verified chunk store:
+
+```text
+ts-cli node model.tswarm .tswarm-cache
+```
+
 ## Local verification
 
 Once Rust is installed, run:
