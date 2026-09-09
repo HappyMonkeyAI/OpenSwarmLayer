@@ -1,6 +1,7 @@
 //! Content-addressed object storage and manifest materialization.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -113,6 +114,43 @@ impl ObjectStore {
             });
         }
         Ok(bytes)
+    }
+
+    /// Report object files not referenced by the supplied live hash set.
+    /// Deletion is intentionally left to a separate maintenance operation.
+    pub fn unreferenced_objects(
+        &self,
+        live: impl IntoIterator<Item = Hash32>,
+    ) -> Result<Vec<PathBuf>, StoreError> {
+        let live = live.into_iter().collect::<HashSet<_>>();
+        let mut garbage = Vec::new();
+        for prefix in fs::read_dir(self.root.join("objects"))? {
+            let prefix = prefix?;
+            if !prefix.file_type()?.is_dir() {
+                continue;
+            }
+            for entry in fs::read_dir(prefix.path())? {
+                let entry = entry?;
+                if !entry.file_type()?.is_file() {
+                    continue;
+                }
+                let name = entry.file_name().to_string_lossy().to_string();
+                let parsed = (name.len() == 64)
+                    .then(|| {
+                        let mut bytes = [0_u8; 32];
+                        for (index, slot) in bytes.iter_mut().enumerate() {
+                            *slot = u8::from_str_radix(&name[index * 2..index * 2 + 2], 16).ok()?;
+                        }
+                        Some(Hash32(bytes))
+                    })
+                    .flatten();
+                if parsed.is_none_or(|hash| !live.contains(&hash)) {
+                    garbage.push(entry.path());
+                }
+            }
+        }
+        garbage.sort();
+        Ok(garbage)
     }
 
     pub fn save_state(&self, name: &str, state: &VerifiedChunks) -> Result<PathBuf, StoreError> {
@@ -243,6 +281,20 @@ mod tests {
             store.put_verified(expected, b"bad"),
             Err(StoreError::HashMismatch { .. })
         ));
+    }
+
+    #[test]
+    fn reachability_scan_reports_only_unreferenced_objects() {
+        let root = tempfile::tempdir().unwrap();
+        let store = ObjectStore::open(root.path()).unwrap();
+        let live = sha256(b"live");
+        let dead = sha256(b"dead");
+        store.put_verified(live, b"live").unwrap();
+        store.put_verified(dead, b"dead").unwrap();
+        let garbage = store.unreferenced_objects([live]).unwrap();
+        assert_eq!(garbage, vec![store.object_path(dead)]);
+        assert!(store.object_path(live).is_file());
+        assert!(store.object_path(dead).is_file());
     }
 
     #[test]
