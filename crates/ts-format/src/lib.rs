@@ -447,6 +447,7 @@ fn ggml_tensor_size(dtype: u32, shape: &[u64]) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use byteorder::{LittleEndian, WriteBytesExt};
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -462,6 +463,32 @@ mod tests {
         assert_eq!(index.format, ArtifactFormat::Safetensors);
         assert_eq!(index.tensors[0].descriptor.name, "weight");
         assert_eq!(index.tensors[0].offset, 8 + header.len() as u64);
+        assert_eq!(index.tensors[0].length, 8);
+    }
+
+    #[test]
+    fn parses_gguf_alignment_metadata_without_loading_payload() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"GGUF");
+        bytes.write_u32::<LittleEndian>(3).unwrap();
+        bytes.write_u64::<LittleEndian>(1).unwrap();
+        bytes.write_u64::<LittleEndian>(1).unwrap();
+        bytes.write_u64::<LittleEndian>(17).unwrap();
+        bytes.extend_from_slice(b"general.alignment");
+        bytes.write_u32::<LittleEndian>(4).unwrap();
+        bytes.write_u32::<LittleEndian>(64).unwrap();
+        bytes.write_u64::<LittleEndian>(1).unwrap();
+        bytes.extend_from_slice(b"x");
+        bytes.write_u32::<LittleEndian>(1).unwrap();
+        bytes.write_u64::<LittleEndian>(2).unwrap();
+        bytes.write_u32::<LittleEndian>(0).unwrap();
+        bytes.write_u64::<LittleEndian>(0).unwrap();
+        bytes.resize(128, 0);
+        bytes.extend_from_slice(&[0; 8]);
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(&bytes).unwrap();
+        let index = inspect(file.path()).unwrap();
+        assert_eq!(index.tensors[0].offset, 128);
         assert_eq!(index.tensors[0].length, 8);
     }
 
