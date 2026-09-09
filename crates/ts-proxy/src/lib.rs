@@ -1,5 +1,6 @@
 //! Local HTTP range planning and file-serving primitives.
 
+use anyhow::Context;
 use axum::body::Body;
 use axum::extract::{Path as AxumPath, State};
 use axum::http::{header, HeaderValue, Request, StatusCode};
@@ -143,6 +144,91 @@ impl FetchEngine {
             ),
         }
     }
+
+    pub async fn fetch_manifest_range(
+        &self,
+        manifest: &Manifest,
+        origin_url: &str,
+        requested: Range<u64>,
+        peer: Option<PeerFetch>,
+    ) -> anyhow::Result<Vec<u8>> {
+        let recipe = manifest
+            .files
+            .first()
+            .context("manifest has no file recipe")?;
+        anyhow::ensure!(
+            requested.start < requested.end && requested.end <= recipe.file_size,
+            "invalid manifest range"
+        );
+        let mut output = Vec::with_capacity((requested.end - requested.start) as usize);
+        for segment in &recipe.segments {
+            let offset = match segment {
+                Segment::Literal { offset, .. }
+                | Segment::Tensor { offset, .. }
+                | Segment::ZeroFill { offset, .. } => *offset,
+            };
+            let length = match segment {
+                Segment::Literal { bytes, .. } => bytes.len() as u64,
+                Segment::Tensor { length, .. } | Segment::ZeroFill { length, .. } => *length,
+            };
+            let segment_end = offset.checked_add(length).context("segment overflow")?;
+            let start = requested.start.max(offset);
+            let end = requested.end.min(segment_end);
+            if start >= end {
+                continue;
+            }
+            match segment {
+                Segment::Literal { bytes, .. } => {
+                    let local_start = (start - offset) as usize;
+                    let local_end = (end - offset) as usize;
+                    output.extend_from_slice(&bytes[local_start..local_end]);
+                }
+                Segment::ZeroFill { .. } => {
+                    output.extend(std::iter::repeat_n(0, (end - start) as usize))
+                }
+                Segment::Tensor {
+                    offset,
+                    tensor_hash,
+                    tensor_offset,
+                    length,
+                } => {
+                    let wanted_start = tensor_offset + (start - offset);
+                    let wanted_end = tensor_offset + (end - offset);
+                    let node = manifest
+                        .tensors
+                        .iter()
+                        .find(|node| node.tensor_hash == *tensor_hash)
+                        .context("tensor missing from manifest")?;
+                    for chunk in &node.chunks {
+                        let chunk_end = chunk.offset + chunk.length;
+                        let chunk_start = wanted_start.max(chunk.offset);
+                        let chunk_stop = wanted_end.min(chunk_end);
+                        if chunk_start >= chunk_stop {
+                            continue;
+                        }
+                        let origin_start = offset + (chunk.offset - tensor_offset);
+                        let bytes = self
+                            .fetch_chunk(
+                                origin_url,
+                                origin_start..origin_start + chunk.length,
+                                chunk.hash,
+                                peer.clone(),
+                            )
+                            .await?;
+                        let local_start = (chunk_start - chunk.offset) as usize;
+                        let local_end = (chunk_stop - chunk.offset) as usize;
+                        output.extend_from_slice(&bytes[local_start..local_end]);
+                    }
+                    anyhow::ensure!(*length <= recipe.file_size, "invalid tensor segment length");
+                }
+            }
+        }
+        anyhow::ensure!(
+            output.len() as u64 == requested.end - requested.start,
+            "manifest recipe has uncovered bytes"
+        );
+        Ok(output)
+    }
 }
 
 #[derive(Debug, Error, Eq, PartialEq)]
@@ -238,6 +324,27 @@ pub struct FileProxyState {
     pub root: Arc<PathBuf>,
 }
 
+#[derive(Clone)]
+pub struct ManifestProxyState {
+    pub manifest: Manifest,
+    pub origin_url: String,
+    pub engine: FetchEngine,
+    pub peer: Option<PeerFetch>,
+}
+
+pub fn manifest_router(config: ManifestProxyState) -> Router {
+    Router::new()
+        .route("/healthz", get(|| async { (StatusCode::OK, "ok\n") }))
+        .route("/file/{*path}", get(serve_manifest_file))
+        .with_state(config)
+}
+
+pub async fn serve_manifest(bind: &str, config: ManifestProxyState) -> anyhow::Result<()> {
+    let listener = TcpListener::bind(bind).await?;
+    axum::serve(listener, manifest_router(config)).await?;
+    Ok(())
+}
+
 pub fn router(root: impl Into<PathBuf>) -> Router {
     let state = FileProxyState {
         root: Arc::new(root.into()),
@@ -324,6 +431,68 @@ async fn serve_file(
     Ok(response)
 }
 
+async fn serve_manifest_file(
+    State(state): State<ManifestProxyState>,
+    AxumPath(path): AxumPath<String>,
+    request: Request<Body>,
+) -> Result<Response, StatusCode> {
+    let recipe = state.manifest.files.first().ok_or(StatusCode::NOT_FOUND)?;
+    if path != recipe.path {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    let file_size = recipe.file_size;
+    let range = request
+        .headers()
+        .get(header::RANGE)
+        .map(|value| {
+            value
+                .to_str()
+                .map_err(|_| StatusCode::RANGE_NOT_SATISFIABLE)
+        })
+        .transpose()?
+        .map(|value| {
+            parse_single_range(value, file_size).map_err(|_| StatusCode::RANGE_NOT_SATISFIABLE)
+        })
+        .transpose()?
+        .unwrap_or(0..file_size);
+    let bytes = state
+        .engine
+        .fetch_manifest_range(
+            &state.manifest,
+            &state.origin_url,
+            range.clone(),
+            state.peer.clone(),
+        )
+        .await
+        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let mut response = Response::new(Body::from(bytes));
+    *response.status_mut() = if range.start == 0 && range.end == file_size {
+        StatusCode::OK
+    } else {
+        StatusCode::PARTIAL_CONTENT
+    };
+    let partial = response.status() == StatusCode::PARTIAL_CONTENT;
+    let headers = response.headers_mut();
+    headers.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+    headers.insert(
+        header::CONTENT_LENGTH,
+        HeaderValue::from_str(&(range.end - range.start).to_string()).unwrap(),
+    );
+    if partial {
+        headers.insert(
+            header::CONTENT_RANGE,
+            HeaderValue::from_str(&format!(
+                "bytes {}-{}/{}",
+                range.start,
+                range.end - 1,
+                file_size
+            ))
+            .unwrap(),
+        );
+    }
+    Ok(response)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,5 +546,59 @@ mod tests {
             b"chunk"
         );
         assert_eq!(calls.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn manifest_range_assembles_literal_and_tensor_bytes() {
+        let root = tempfile::tempdir().unwrap();
+        let engine = FetchEngine::new(ts_store::ObjectStore::open(root.path()).unwrap());
+        let payload = b"tensor".to_vec();
+        let chunk_hash = sha256(&payload);
+        let tensor_hash = sha256(b"tensor-identity");
+        let manifest = Manifest::new(
+            ts_core::ArtifactFormat::Safetensors,
+            10,
+            vec![ts_core::TensorNode {
+                descriptor: ts_core::TensorDescriptor {
+                    name: "weight".into(),
+                    shape: vec![6],
+                    dtype: "U8".into(),
+                    byte_len: 6,
+                },
+                tensor_hash,
+                chunks: vec![ChunkRef {
+                    index: 0,
+                    offset: 0,
+                    length: 6,
+                    hash: chunk_hash,
+                }],
+            }],
+            vec![ts_core::FileRecipe {
+                path: "model.safetensors".into(),
+                format: ts_core::ArtifactFormat::Safetensors,
+                file_size: 10,
+                segments: vec![
+                    Segment::Literal {
+                        offset: 0,
+                        bytes: b"head".to_vec(),
+                    },
+                    Segment::Tensor {
+                        offset: 4,
+                        tensor_hash,
+                        tensor_offset: 0,
+                        length: 6,
+                    },
+                ],
+            }],
+        );
+        let peer: PeerFetch = Arc::new(move |_, _, _| {
+            let payload = payload.clone();
+            Box::pin(async move { Ok(payload) })
+        });
+        let bytes = engine
+            .fetch_manifest_range(&manifest, "https://invalid.example/model", 2..8, Some(peer))
+            .await
+            .unwrap();
+        assert_eq!(bytes, b"adtens");
     }
 }
