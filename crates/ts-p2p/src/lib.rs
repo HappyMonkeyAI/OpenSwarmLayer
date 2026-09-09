@@ -17,6 +17,109 @@ pub struct LanBehaviour {
 
 pub type LanSwarm = libp2p::Swarm<LanBehaviour>;
 
+pub struct LanClient {
+    swarm: LanSwarm,
+}
+
+impl LanClient {
+    pub fn new(swarm: LanSwarm) -> Self {
+        Self { swarm }
+    }
+
+    pub fn swarm_mut(&mut self) -> &mut LanSwarm {
+        &mut self.swarm
+    }
+
+    pub async fn fetch_chunk(
+        &mut self,
+        peer: libp2p::PeerId,
+        request: ChunkRequest,
+        max_attempts: u8,
+    ) -> anyhow::Result<Vec<u8>> {
+        use futures::StreamExt;
+        use libp2p::request_response::{Event, Message};
+        use libp2p::swarm::SwarmEvent;
+        use std::time::Duration;
+
+        anyhow::ensure!(max_attempts > 0, "max_attempts must be positive");
+        let mut last_failure = String::from("no response");
+        let peer_request = PeerRequest::GetChunks {
+            tensor_hash: request.tensor_hash,
+            chunks: vec![request.clone()],
+        };
+        for _attempt in 0..max_attempts {
+            let request_id = if self.swarm.is_connected(&peer) {
+                Some(
+                    self.swarm
+                        .behaviour_mut()
+                        .request_response
+                        .send_request(&peer, peer_request.clone()),
+                )
+            } else {
+                None
+            };
+            let result = tokio::time::timeout(Duration::from_secs(5), async {
+                let mut outbound = request_id;
+                loop {
+                    match self.swarm.select_next_some().await {
+                        SwarmEvent::ConnectionEstablished { peer_id, .. } if peer_id == peer => {
+                            outbound = Some(
+                                self.swarm
+                                    .behaviour_mut()
+                                    .request_response
+                                    .send_request(&peer, peer_request.clone()),
+                            );
+                        }
+                        SwarmEvent::Behaviour(LanBehaviourEvent::RequestResponse(
+                            Event::Message {
+                                message:
+                                    Message::Response {
+                                        request_id,
+                                        response,
+                                    },
+                                ..
+                            },
+                        )) if Some(request_id) == outbound => match response {
+                            PeerResponse::Chunk {
+                                payload,
+                                payload_hash,
+                                tensor_hash,
+                                chunk_index,
+                                ..
+                            } if tensor_hash == request.tensor_hash
+                                && chunk_index == request.chunk_index
+                                && payload_hash == request.expected_hash
+                                && sha256(&payload) == request.expected_hash =>
+                            {
+                                return Ok(payload)
+                            }
+                            PeerResponse::Error { code, .. } => {
+                                anyhow::bail!("peer rejected chunk: {code:?}")
+                            }
+                            _ => anyhow::bail!("peer returned an invalid chunk response"),
+                        },
+                        SwarmEvent::Behaviour(LanBehaviourEvent::RequestResponse(
+                            Event::OutboundFailure {
+                                request_id, error, ..
+                            },
+                        )) if Some(request_id) == outbound => {
+                            anyhow::bail!("chunk request failed: {error}")
+                        }
+                        _ => {}
+                    }
+                }
+            })
+            .await;
+            match result {
+                Ok(Ok(bytes)) => return Ok(bytes),
+                Ok(Err(error)) => last_failure = error.to_string(),
+                Err(_) => last_failure = String::from("chunk request timed out"),
+            }
+        }
+        anyhow::bail!("chunk request exhausted retries: {last_failure}")
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct ChunkProvider {
     manifests: HashMap<Hash32, Vec<u8>>,
@@ -602,10 +705,6 @@ mod tests {
 
     #[tokio::test]
     async fn two_local_nodes_transfer_a_verified_chunk() {
-        use futures::StreamExt;
-        use libp2p::request_response::{Event, Message};
-        use libp2p::swarm::SwarmEvent;
-
         let mut provider = ChunkProvider::default();
         let tensor = Hash32([8; 32]);
         let payload = b"layer-zero".to_vec();
@@ -627,35 +726,22 @@ mod tests {
             .unwrap()
             .with(libp2p::multiaddr::Protocol::P2p(server_id.into()));
 
-        let mut client = build_lan_swarm_with_listeners(&[]).unwrap();
-        client.dial(address).unwrap();
-        let request = PeerRequest::GetChunks {
-            tensor_hash: tensor,
-            chunks: vec![ChunkRequest {
-                request_id: 42,
-                tensor_hash: tensor,
-                chunk_index: 0,
-                expected_hash: expected,
-            }],
-        };
-        let response = loop {
-            match client.select_next_some().await {
-                SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                    client
-                        .behaviour_mut()
-                        .request_response
-                        .send_request(&peer_id, request.clone());
-                }
-                SwarmEvent::Behaviour(LanBehaviourEvent::RequestResponse(Event::Message {
-                    message: Message::Response { response, .. },
-                    ..
-                })) => break response,
-                _ => {}
-            }
-        };
+        let mut client = LanClient::new(build_lan_swarm_with_listeners(&[]).unwrap());
+        client.swarm_mut().dial(address).unwrap();
+        let response = client
+            .fetch_chunk(
+                server_id,
+                ChunkRequest {
+                    request_id: 42,
+                    tensor_hash: tensor,
+                    chunk_index: 0,
+                    expected_hash: expected,
+                },
+                3,
+            )
+            .await
+            .unwrap();
         server_task.abort();
-        assert!(
-            matches!(response, PeerResponse::Chunk { request_id: 42, payload, .. } if payload == b"layer-zero")
-        );
+        assert_eq!(response, b"layer-zero");
     }
 }
