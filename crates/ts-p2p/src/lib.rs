@@ -59,6 +59,12 @@ impl ChunkProvider {
                 tensor_hash,
                 chunks,
             } => {
+                if chunks.is_empty() || chunks.len() > MAX_CHUNKS_PER_REQUEST {
+                    return PeerResponse::Error {
+                        request_id: None,
+                        code: PeerErrorCode::TooLarge,
+                    };
+                }
                 let Some(request) = chunks.into_iter().next() else {
                     return PeerResponse::Error {
                         request_id: None,
@@ -66,7 +72,10 @@ impl ChunkProvider {
                     };
                 };
                 match self.chunks.get(&(tensor_hash, request.chunk_index)) {
-                    Some(payload) if sha256(payload) == request.expected_hash => {
+                    Some(payload)
+                        if payload.len() <= MAX_CHUNK_BYTES
+                            && sha256(payload) == request.expected_hash =>
+                    {
                         PeerResponse::Chunk {
                             request_id: request.request_id,
                             tensor_hash,
@@ -226,6 +235,8 @@ pub async fn run_lan_node_with_provider_and_notify(
 
 pub const MANIFEST_PROTOCOL: &str = "/ts-p2p/manifest/1";
 pub const CHUNK_PROTOCOL: &str = "/ts-p2p/chunk/1";
+pub const MAX_CHUNKS_PER_REQUEST: usize = 64;
+pub const MAX_CHUNK_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ChunkRequest {
@@ -297,6 +308,40 @@ pub fn manifest_dht_key(hash: &Hash32) -> Vec<u8> {
 }
 pub fn tensor_dht_key(hash: &Hash32) -> Vec<u8> {
     dht_key("tensor", hash)
+}
+
+pub fn publish_manifest(
+    swarm: &mut LanSwarm,
+    hash: &Hash32,
+) -> Result<libp2p::kad::QueryId, libp2p::kad::store::Error> {
+    swarm
+        .behaviour_mut()
+        .kad
+        .start_providing(libp2p::kad::RecordKey::new(&manifest_dht_key(hash)))
+}
+
+pub fn publish_tensor(
+    swarm: &mut LanSwarm,
+    hash: &Hash32,
+) -> Result<libp2p::kad::QueryId, libp2p::kad::store::Error> {
+    swarm
+        .behaviour_mut()
+        .kad
+        .start_providing(libp2p::kad::RecordKey::new(&tensor_dht_key(hash)))
+}
+
+pub fn find_manifest_providers(swarm: &mut LanSwarm, hash: &Hash32) -> libp2p::kad::QueryId {
+    swarm
+        .behaviour_mut()
+        .kad
+        .get_providers(libp2p::kad::RecordKey::new(&manifest_dht_key(hash)))
+}
+
+pub fn find_tensor_providers(swarm: &mut LanSwarm, hash: &Hash32) -> libp2p::kad::QueryId {
+    swarm
+        .behaviour_mut()
+        .kad
+        .get_providers(libp2p::kad::RecordKey::new(&tensor_dht_key(hash)))
 }
 
 pub fn validate_chunk_request(
@@ -439,6 +484,29 @@ mod tests {
         assert!(matches!(
             response,
             PeerResponse::Chunk { request_id: 7, .. }
+        ));
+    }
+
+    #[test]
+    fn provider_rejects_unbounded_chunk_batches() {
+        let provider = ChunkProvider::default();
+        let response = provider.respond(PeerRequest::GetChunks {
+            tensor_hash: Hash32::ZERO,
+            chunks: (0..=MAX_CHUNKS_PER_REQUEST)
+                .map(|index| ChunkRequest {
+                    request_id: index as u64,
+                    tensor_hash: Hash32::ZERO,
+                    chunk_index: index as u32,
+                    expected_hash: Hash32::ZERO,
+                })
+                .collect(),
+        });
+        assert!(matches!(
+            response,
+            PeerResponse::Error {
+                code: PeerErrorCode::TooLarge,
+                ..
+            }
         ));
     }
 
