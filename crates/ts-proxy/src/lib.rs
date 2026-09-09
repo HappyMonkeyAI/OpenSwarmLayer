@@ -7,8 +7,10 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
 use reqwest::Client;
+use std::future::Future;
 use std::ops::Range;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, SeekFrom};
@@ -74,6 +76,72 @@ impl WebSeeder {
         let bytes = self.fetch_verified(url, range, expected).await?;
         store.put_verified(expected, &bytes)?;
         Ok(expected)
+    }
+}
+
+pub type PeerFetch = Arc<
+    dyn Fn(
+            Hash32,
+            Range<u64>,
+            Hash32,
+        ) -> Pin<Box<dyn Future<Output = anyhow::Result<Vec<u8>>> + Send>>
+        + Send
+        + Sync,
+>;
+
+#[derive(Clone)]
+pub struct FetchEngine {
+    pub store: ts_store::ObjectStore,
+    pub webseed: WebSeeder,
+}
+
+impl FetchEngine {
+    pub fn new(store: ts_store::ObjectStore) -> Self {
+        Self {
+            store,
+            webseed: WebSeeder::default(),
+        }
+    }
+
+    /// Resolve one manifest chunk using CAS, then swarm, then HTTPS WebSeed.
+    /// Only bytes whose expected hash matches are persisted.
+    pub async fn fetch_chunk(
+        &self,
+        url: &str,
+        range: Range<u64>,
+        expected: Hash32,
+        peer: Option<PeerFetch>,
+    ) -> anyhow::Result<Vec<u8>> {
+        if self.store.contains(expected) {
+            return Ok(self.store.get(expected)?);
+        }
+        let expected_len = range.end.checked_sub(range.start).unwrap_or(0);
+        if expected_len == 0 {
+            anyhow::bail!("empty chunk range");
+        }
+        let mut peer_error = None;
+        if let Some(fetch) = peer {
+            match fetch(expected, range.clone(), expected).await {
+                Ok(bytes) if bytes.len() as u64 == expected_len && sha256(&bytes) == expected => {
+                    self.store.put_verified(expected, &bytes)?;
+                    return Ok(bytes);
+                }
+                Ok(_) => peer_error = Some(String::from("peer returned invalid chunk bytes")),
+                Err(error) => peer_error = Some(error.to_string()),
+            }
+        }
+        match self
+            .webseed
+            .fetch_verified_into_store(url, range, expected, &self.store)
+            .await
+        {
+            Ok(_) => Ok(self.store.get(expected)?),
+            Err(webseed_error) => anyhow::bail!(
+                "chunk unavailable from swarm and WebSeed: {}; {}",
+                peer_error.unwrap_or_else(|| String::from("no peer source")),
+                webseed_error
+            ),
+        }
     }
 }
 
@@ -259,6 +327,7 @@ async fn serve_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn parses_open_and_suffix_ranges() {
@@ -277,5 +346,36 @@ mod tests {
             parse_single_range("bytes=0-1,4-5", 10),
             Err(RangeError::Multiple)
         );
+    }
+
+    #[tokio::test]
+    async fn fetch_engine_prefers_peer_then_hits_cas() {
+        let root = tempfile::tempdir().unwrap();
+        let store = ts_store::ObjectStore::open(root.path()).unwrap();
+        let engine = FetchEngine::new(store);
+        let payload = b"chunk".to_vec();
+        let expected = sha256(&payload);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = Arc::clone(&calls);
+        let peer: PeerFetch = Arc::new(move |_, _, _| {
+            observed.fetch_add(1, Ordering::Relaxed);
+            let payload = payload.clone();
+            Box::pin(async move { Ok(payload) })
+        });
+        assert_eq!(
+            engine
+                .fetch_chunk("https://invalid.example/chunk", 0..5, expected, Some(peer))
+                .await
+                .unwrap(),
+            b"chunk"
+        );
+        assert_eq!(
+            engine
+                .fetch_chunk("https://invalid.example/chunk", 0..5, expected, None)
+                .await
+                .unwrap(),
+            b"chunk"
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
     }
 }
