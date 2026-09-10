@@ -3118,6 +3118,7 @@ name = "ts-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "libp2p",
  "serde_cbor",
  "tokio",
  "ts-core",

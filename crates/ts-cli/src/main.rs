@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 fn usage() {
-    eprintln!("usage:\n  ts-cli node [manifest.tswarm] [store-root]\n  ts-cli proxy [bind] <root>\n  ts-cli proxy-manifest [bind] <manifest.tswarm> <store-root> <origin-url>\n  ts-cli inspect <model>\n  ts-cli manifest <model> <output.tswarm>\n  ts-cli verify <model> <manifest.tswarm>\n  ts-cli diff <old.tswarm> <new.tswarm>");
+    eprintln!("usage:\n  ts-cli node [manifest.tswarm] [store-root]\n  ts-cli proxy [bind] <root>\n  ts-cli proxy-manifest [bind] <manifest.tswarm> <store-root> <origin-url> [peer-id] [peer-address]\n  ts-cli inspect <model>\n  ts-cli manifest <model> <output.tswarm>\n  ts-cli verify <model> <manifest.tswarm>\n  ts-cli diff <old.tswarm> <new.tswarm>");
 }
 
 #[tokio::main]
@@ -42,12 +42,13 @@ async fn main() -> Result<()> {
         }
         Some("proxy-manifest") => {
             let values = args.collect::<Vec<_>>();
-            let (bind, manifest_path, store_root, origin_url) = match values.as_slice() {
+            let (bind, manifest_path, store_root, origin_url, peer_config) = match values.as_slice() {
                 [manifest_path, store_root, origin_url] => (
                     ts_proxy::DEFAULT_BIND.to_string(),
                     manifest_path,
                     store_root,
                     origin_url,
+                    None,
                 ),
                 [bind, manifest_path, store_root, origin_url] => (
                     bind.to_str()
@@ -56,8 +57,25 @@ async fn main() -> Result<()> {
                     manifest_path,
                     store_root,
                     origin_url,
+                    None,
                 ),
-                _ => anyhow::bail!("usage: ts-cli proxy-manifest [bind] <manifest.tswarm> <store-root> <origin-url>"),
+                [manifest_path, store_root, origin_url, peer_id, peer_address] => (
+                    ts_proxy::DEFAULT_BIND.to_string(),
+                    manifest_path,
+                    store_root,
+                    origin_url,
+                    Some((peer_id, peer_address)),
+                ),
+                [bind, manifest_path, store_root, origin_url, peer_id, peer_address] => (
+                    bind.to_str()
+                        .context("proxy bind must be valid UTF-8")?
+                        .to_string(),
+                    manifest_path,
+                    store_root,
+                    origin_url,
+                    Some((peer_id, peer_address)),
+                ),
+                _ => anyhow::bail!("usage: ts-cli proxy-manifest [bind] <manifest.tswarm> <store-root> <origin-url> [peer-id] [peer-address]"),
             };
             let manifest: ts_core::Manifest = serde_cbor::from_slice(&fs::read(manifest_path)?)?;
             anyhow::ensure!(manifest.verify_root(), "manifest self-check failed");
@@ -74,11 +92,30 @@ async fn main() -> Result<()> {
                 &model_path,
             )?;
             let store = ts_store::ObjectStore::open(PathBuf::from(store_root))?;
+            let peer = if let Some((peer_id, peer_address)) = peer_config {
+                let peer_id = peer_id
+                    .to_str()
+                    .context("peer ID must be valid UTF-8")?
+                    .parse::<libp2p::PeerId>()
+                    .context("invalid peer ID")?;
+                let peer_address = peer_address
+                    .to_str()
+                    .context("peer address must be valid UTF-8")?
+                    .parse::<libp2p::Multiaddr>()
+                    .context("invalid peer multiaddress")?;
+                let client = std::sync::Arc::new(tokio::sync::Mutex::new(ts_p2p::LanClient::new(
+                    ts_p2p::build_lan_swarm_with_listeners(&[])?,
+                )));
+                client.lock().await.swarm_mut().dial(peer_address)?;
+                Some(ts_proxy::lan_peer_fetch(client, peer_id, 3))
+            } else {
+                None
+            };
             let config = ts_proxy::ManifestProxyState {
                 manifest,
                 origin_url,
                 engine: ts_proxy::FetchEngine::new(store),
-                peer: None,
+                peer,
             };
             println!("manifest proxy: http://{bind}/file/<manifest-path>");
             ts_proxy::serve_manifest(&bind, config).await?;

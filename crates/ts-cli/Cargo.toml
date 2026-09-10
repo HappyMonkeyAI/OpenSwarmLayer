@@ -13,3 +13,4 @@ ts-p2p = { path = "../ts-p2p" }
 ts-proxy = { path = "../ts-proxy" }
 ts-store = { path = "../ts-store" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+libp2p = "0.56"

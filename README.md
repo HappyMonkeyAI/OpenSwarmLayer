@@ -23,6 +23,8 @@ To run the manifest-aware localhost proxy with HTTPS WebSeed fallback:
 ```text
 ts-cli proxy-manifest model.tswarm .tswarm-cache https://model.example/model.safetensors
 ts-cli proxy-manifest 127.0.0.1:9090 model.tswarm .tswarm-cache https://model.example/model.safetensors
+# Optional LAN peer: <peer-id> <multiaddress>
+ts-cli proxy-manifest 127.0.0.1:9090 model.tswarm .tswarm-cache https://model.example/model.safetensors <peer-id> <multiaddress>
 ```
 
 Clients can request `http://127.0.0.1:9090/file/<manifest-path>` directly. Transparent
