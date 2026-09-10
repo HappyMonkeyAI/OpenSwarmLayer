@@ -25,8 +25,8 @@ ts-cli proxy-manifest model.tswarm .tswarm-cache https://model.example/model.saf
 ts-cli proxy-manifest 127.0.0.1:9090 model.tswarm .tswarm-cache https://model.example/model.safetensors
 ```
 
-Clients can use `http://127.0.0.1:9090/file/<manifest-path>` as their model URL and set
-`HTTP_PROXY`/`HTTPS_PROXY` to `http://127.0.0.1:9090` when the client requests the origin URL.
+Clients can request `http://127.0.0.1:9090/file/<manifest-path>` directly. Transparent
+`HTTP_PROXY`/`HTTPS_PROXY` origin-url handling remains a tracked M4-09 task.
 
 ## Local verification
 
