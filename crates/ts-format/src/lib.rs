@@ -448,6 +448,7 @@ fn ggml_tensor_size(dtype: u32, shape: &[u64]) -> Result<u64> {
 mod tests {
     use super::*;
     use byteorder::{LittleEndian, WriteBytesExt};
+    use proptest::prelude::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -546,6 +547,28 @@ mod tests {
         );
         let total: u64 = chunks.iter().map(|(_, length)| *length).sum();
         assert_eq!(total, 100);
+    }
+
+    proptest! {
+        #[test]
+        fn chunk_plan_property_preserves_coverage(
+            length in 1_u64..=1_000_000,
+            block_size in 1_u64..=4096,
+            target_blocks in 1_u64..=64,
+        ) {
+            let target_size = block_size.saturating_mul(target_blocks);
+            let chunks = plan_chunks(length, block_size, target_size).unwrap();
+            prop_assert!(!chunks.is_empty());
+            prop_assert_eq!(chunks.first().unwrap().0, 0);
+            prop_assert_eq!(chunks.iter().map(|(_, size)| *size).sum::<u64>(), length);
+            for pair in chunks.windows(2) {
+                prop_assert_eq!(pair[0].0 + pair[0].1, pair[1].0);
+            }
+            for (offset, size) in &chunks[..chunks.len() - 1] {
+                prop_assert_eq!(*offset % block_size, 0);
+                prop_assert_eq!(*size % block_size, 0);
+            }
+        }
     }
 
     #[test]
