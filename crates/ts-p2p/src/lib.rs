@@ -109,6 +109,7 @@ impl LanClient {
                                 && payload_hash == request.expected_hash
                                 && sha256(&payload) == request.expected_hash =>
                             {
+                                let _ = publish_tensor(&mut self.swarm, &request.tensor_hash);
                                 return Ok(payload)
                             }
                             PeerResponse::Error { code, .. } => {
