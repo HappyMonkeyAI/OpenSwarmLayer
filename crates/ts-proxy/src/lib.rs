@@ -152,15 +152,14 @@ impl FetchEngine {
         requested: Range<u64>,
         peer: Option<PeerFetch>,
     ) -> anyhow::Result<Vec<u8>> {
-        let recipe = manifest
-            .files
-            .first()
-            .context("manifest has no file recipe")?;
+        let recipe = validate_manifest_recipe(manifest)?;
         anyhow::ensure!(
             requested.start < requested.end && requested.end <= recipe.file_size,
             "invalid manifest range"
         );
-        let mut output = Vec::with_capacity((requested.end - requested.start) as usize);
+        let output_len = usize::try_from(requested.end - requested.start)
+            .context("requested range does not fit in memory")?;
+        let mut output = Vec::with_capacity(output_len);
         for segment in &recipe.segments {
             let offset = match segment {
                 Segment::Literal { offset, .. }
@@ -184,7 +183,9 @@ impl FetchEngine {
                     output.extend_from_slice(&bytes[local_start..local_end]);
                 }
                 Segment::ZeroFill { .. } => {
-                    output.extend(std::iter::repeat_n(0, (end - start) as usize))
+                    let fill_len = usize::try_from(end - start)
+                        .context("zero-fill range does not fit in memory")?;
+                    output.extend(std::iter::repeat_n(0, fill_len))
                 }
                 Segment::Tensor {
                     offset,
@@ -192,29 +193,45 @@ impl FetchEngine {
                     tensor_offset,
                     length,
                 } => {
-                    let wanted_start = tensor_offset + (start - offset);
-                    let wanted_end = tensor_offset + (end - offset);
+                    let wanted_start = tensor_offset
+                        .checked_add(start - offset)
+                        .context("tensor range overflow")?;
+                    let wanted_end = tensor_offset
+                        .checked_add(end - offset)
+                        .context("tensor range overflow")?;
                     let node = manifest
                         .tensors
                         .iter()
                         .find(|node| node.tensor_hash == *tensor_hash)
                         .context("tensor missing from manifest")?;
                     for chunk in &node.chunks {
-                        let chunk_end = chunk.offset + chunk.length;
+                        let chunk_end = chunk
+                            .offset
+                            .checked_add(chunk.length)
+                            .context("chunk range overflow")?;
                         let chunk_start = wanted_start.max(chunk.offset);
                         let chunk_stop = wanted_end.min(chunk_end);
                         if chunk_start >= chunk_stop {
                             continue;
                         }
-                        let origin_start = offset + (chunk.offset - tensor_offset);
+                        let origin_start = offset
+                            .checked_add(chunk.offset - tensor_offset)
+                            .context("origin range overflow")?;
+                        let origin_end = origin_start
+                            .checked_add(chunk.length)
+                            .context("origin range overflow")?;
                         let bytes = self
                             .fetch_chunk(
                                 origin_url,
-                                origin_start..origin_start + chunk.length,
+                                origin_start..origin_end,
                                 chunk.hash,
                                 peer.clone(),
                             )
                             .await?;
+                        anyhow::ensure!(
+                            bytes.len() as u64 == chunk.length,
+                            "fetcher returned malformed chunk length"
+                        );
                         let local_start = (chunk_start - chunk.offset) as usize;
                         let local_end = (chunk_stop - chunk.offset) as usize;
                         output.extend_from_slice(&bytes[local_start..local_end]);
@@ -229,6 +246,79 @@ impl FetchEngine {
         );
         Ok(output)
     }
+}
+
+fn validate_manifest_recipe(manifest: &Manifest) -> anyhow::Result<&ts_core::FileRecipe> {
+    anyhow::ensure!(manifest.verify_root(), "manifest self-check failed");
+    let recipe = manifest
+        .files
+        .first()
+        .context("manifest has no file recipe")?;
+    anyhow::ensure!(recipe.file_size == manifest.file_size, "file size mismatch");
+
+    let mut cursor = 0_u64;
+    for segment in &recipe.segments {
+        let (offset, length) = match segment {
+            Segment::Literal { offset, bytes } => (*offset, bytes.len() as u64),
+            Segment::Tensor { offset, length, .. } | Segment::ZeroFill { offset, length } => {
+                (*offset, *length)
+            }
+        };
+        anyhow::ensure!(offset == cursor, "manifest recipe has a gap or overlap");
+        anyhow::ensure!(length > 0, "manifest recipe contains an empty segment");
+        cursor = offset.checked_add(length).context("segment overflow")?;
+        anyhow::ensure!(cursor <= recipe.file_size, "segment exceeds file size");
+
+        if let Segment::Tensor {
+            tensor_hash,
+            tensor_offset,
+            length,
+            ..
+        } = segment
+        {
+            let node = manifest
+                .tensors
+                .iter()
+                .find(|node| node.tensor_hash == *tensor_hash)
+                .context("tensor missing from manifest")?;
+            let tensor_end = tensor_offset
+                .checked_add(*length)
+                .context("tensor segment overflow")?;
+            anyhow::ensure!(
+                tensor_end <= node.descriptor.byte_len,
+                "tensor segment exceeds tensor"
+            );
+            let mut chunk_cursor = 0_u64;
+            for (expected_index, chunk) in node.chunks.iter().enumerate() {
+                anyhow::ensure!(
+                    chunk.index == expected_index as u32,
+                    "tensor chunks have invalid indexes"
+                );
+                anyhow::ensure!(
+                    chunk.offset == chunk_cursor,
+                    "tensor chunks have a gap or overlap"
+                );
+                anyhow::ensure!(chunk.length > 0, "tensor contains an empty chunk");
+                chunk_cursor = chunk
+                    .offset
+                    .checked_add(chunk.length)
+                    .context("chunk overflow")?;
+                anyhow::ensure!(
+                    chunk_cursor <= node.descriptor.byte_len,
+                    "chunk exceeds tensor length"
+                );
+            }
+            anyhow::ensure!(
+                chunk_cursor == node.descriptor.byte_len,
+                "tensor chunks do not cover tensor"
+            );
+        }
+    }
+    anyhow::ensure!(
+        cursor == recipe.file_size,
+        "manifest recipe has uncovered bytes"
+    );
+    Ok(recipe)
 }
 
 #[derive(Debug, Error, Eq, PartialEq)]
@@ -496,7 +586,10 @@ async fn serve_manifest_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::body::to_bytes;
+    use axum::http::Request;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use tower::ServiceExt;
 
     #[test]
     fn parses_open_and_suffix_ranges() {
@@ -600,5 +693,74 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(bytes, b"adtens");
+    }
+
+    #[tokio::test]
+    async fn manifest_router_serves_verified_tensor_range_with_headers() {
+        let root = tempfile::tempdir().unwrap();
+        let store = ts_store::ObjectStore::open(root.path()).unwrap();
+        let payload = b"tensor".to_vec();
+        let chunk_hash = sha256(&payload);
+        store.put_verified(chunk_hash, &payload).unwrap();
+        let tensor_hash = sha256(b"tensor-identity");
+        let manifest = Manifest::new(
+            ts_core::ArtifactFormat::Safetensors,
+            10,
+            vec![ts_core::TensorNode {
+                descriptor: ts_core::TensorDescriptor {
+                    name: "weight".into(),
+                    shape: vec![6],
+                    dtype: "U8".into(),
+                    byte_len: 6,
+                },
+                tensor_hash,
+                chunks: vec![ChunkRef {
+                    index: 0,
+                    offset: 0,
+                    length: 6,
+                    hash: chunk_hash,
+                }],
+            }],
+            vec![ts_core::FileRecipe {
+                path: "model.safetensors".into(),
+                format: ts_core::ArtifactFormat::Safetensors,
+                file_size: 10,
+                segments: vec![
+                    Segment::Literal {
+                        offset: 0,
+                        bytes: b"head".to_vec(),
+                    },
+                    Segment::Tensor {
+                        offset: 4,
+                        tensor_hash,
+                        tensor_offset: 0,
+                        length: 6,
+                    },
+                ],
+            }],
+        );
+        let app = manifest_router(ManifestProxyState {
+            manifest,
+            origin_url: "https://invalid.example/model.safetensors".into(),
+            engine: FetchEngine::new(store),
+            peer: None,
+        });
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/file/model.safetensors")
+                    .header(header::RANGE, "bytes=2-7")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(response.headers()[header::CONTENT_RANGE], "bytes 2-7/10");
+        assert_eq!(response.headers()[header::CONTENT_LENGTH], "6");
+        assert_eq!(
+            to_bytes(response.into_body(), usize::MAX).await.unwrap(),
+            "adtens"
+        );
     }
 }

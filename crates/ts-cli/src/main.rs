@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 fn usage() {
-    eprintln!("usage:\n  ts-cli node [manifest.tswarm] [store-root]\n  ts-cli proxy [bind] <root>\n  ts-cli inspect <model>\n  ts-cli manifest <model> <output.tswarm>\n  ts-cli verify <model> <manifest.tswarm>\n  ts-cli diff <old.tswarm> <new.tswarm>");
+    eprintln!("usage:\n  ts-cli node [manifest.tswarm] [store-root]\n  ts-cli proxy [bind] <root>\n  ts-cli proxy-manifest [bind] <manifest.tswarm> <store-root> <origin-url>\n  ts-cli inspect <model>\n  ts-cli manifest <model> <output.tswarm>\n  ts-cli verify <model> <manifest.tswarm>\n  ts-cli diff <old.tswarm> <new.tswarm>");
 }
 
 #[tokio::main]
@@ -39,6 +39,40 @@ async fn main() -> Result<()> {
             let root = PathBuf::from(args.next().context("missing proxy root directory")?);
             println!("proxy: http://{bind}/file/<path>");
             ts_proxy::serve(&bind, root).await?;
+        }
+        Some("proxy-manifest") => {
+            let values = args.collect::<Vec<_>>();
+            let (bind, manifest_path, store_root, origin_url) = match values.as_slice() {
+                [manifest_path, store_root, origin_url] => (
+                    ts_proxy::DEFAULT_BIND.to_string(),
+                    manifest_path,
+                    store_root,
+                    origin_url,
+                ),
+                [bind, manifest_path, store_root, origin_url] => (
+                    bind.to_str()
+                        .context("proxy bind must be valid UTF-8")?
+                        .to_string(),
+                    manifest_path,
+                    store_root,
+                    origin_url,
+                ),
+                _ => anyhow::bail!("usage: ts-cli proxy-manifest [bind] <manifest.tswarm> <store-root> <origin-url>"),
+            };
+            let manifest: ts_core::Manifest = serde_cbor::from_slice(&fs::read(manifest_path)?)?;
+            anyhow::ensure!(manifest.verify_root(), "manifest self-check failed");
+            let store = ts_store::ObjectStore::open(PathBuf::from(store_root))?;
+            let config = ts_proxy::ManifestProxyState {
+                manifest,
+                origin_url: origin_url
+                    .to_str()
+                    .context("origin URL must be valid UTF-8")?
+                    .to_string(),
+                engine: ts_proxy::FetchEngine::new(store),
+                peer: None,
+            };
+            println!("manifest proxy: http://{bind}/file/<manifest-path>");
+            ts_proxy::serve_manifest(&bind, config).await?;
         }
         Some("inspect") => {
             let path = PathBuf::from(args.next().context("missing model path")?);

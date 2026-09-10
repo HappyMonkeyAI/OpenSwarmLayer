@@ -18,6 +18,16 @@ To run a seeding node from a manifest and verified chunk store:
 ts-cli node model.tswarm .tswarm-cache
 ```
 
+To run the manifest-aware localhost proxy with HTTPS WebSeed fallback:
+
+```text
+ts-cli proxy-manifest model.tswarm .tswarm-cache https://model.example/model.safetensors
+ts-cli proxy-manifest 127.0.0.1:9090 model.tswarm .tswarm-cache https://model.example/model.safetensors
+```
+
+Clients can use `http://127.0.0.1:9090/file/<manifest-path>` as their model URL and set
+`HTTP_PROXY`/`HTTPS_PROXY` to `http://127.0.0.1:9090` when the client requests the origin URL.
+
 ## Local verification
 
 Once Rust is installed, run:
