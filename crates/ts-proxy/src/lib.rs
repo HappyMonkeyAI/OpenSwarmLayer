@@ -116,10 +116,13 @@ pub fn lan_peer_fetch(
     })
 }
 
+pub type VerifiedChunkNotify = Arc<dyn Fn(Hash32) + Send + Sync>;
+
 #[derive(Clone)]
 pub struct FetchEngine {
     pub store: ts_store::ObjectStore,
     pub webseed: WebSeeder,
+    pub verified_chunk_notify: Option<VerifiedChunkNotify>,
 }
 
 impl FetchEngine {
@@ -127,7 +130,13 @@ impl FetchEngine {
         Self {
             store,
             webseed: WebSeeder::default(),
+            verified_chunk_notify: None,
         }
+    }
+
+    pub fn with_verified_chunk_notify(mut self, notify: VerifiedChunkNotify) -> Self {
+        self.verified_chunk_notify = Some(notify);
+        self
     }
 
     /// Resolve one manifest chunk using CAS, then swarm, then HTTPS WebSeed.
@@ -164,6 +173,9 @@ impl FetchEngine {
             match fetch(tensor_hash, chunk_index, range.clone(), expected).await {
                 Ok(bytes) if bytes.len() as u64 == expected_len && sha256(&bytes) == expected => {
                     self.store.put_verified(expected, &bytes)?;
+                    if let Some(notify) = &self.verified_chunk_notify {
+                        notify(expected);
+                    }
                     return Ok(bytes);
                 }
                 Ok(_) => peer_error = Some(String::from("peer returned invalid chunk bytes")),
@@ -175,7 +187,12 @@ impl FetchEngine {
             .fetch_verified_into_store(url, range, expected, &self.store)
             .await
         {
-            Ok(_) => Ok(self.store.get(expected)?),
+            Ok(_) => {
+                if let Some(notify) = &self.verified_chunk_notify {
+                    notify(expected);
+                }
+                Ok(self.store.get(expected)?)
+            }
             Err(webseed_error) => anyhow::bail!(
                 "chunk unavailable from swarm and WebSeed: {}; {}",
                 peer_error.unwrap_or_else(|| String::from("no peer source")),
@@ -689,8 +706,12 @@ mod tests {
     #[tokio::test]
     async fn fetch_engine_prefers_peer_then_hits_cas() {
         let root = tempfile::tempdir().unwrap();
-        let store = ts_store::ObjectStore::open(root.path()).unwrap();
-        let engine = FetchEngine::new(store);
+        let notifications = Arc::new(AtomicUsize::new(0));
+        let observed_notifications = Arc::clone(&notifications);
+        let engine = FetchEngine::new(ts_store::ObjectStore::open(root.path()).unwrap())
+            .with_verified_chunk_notify(Arc::new(move |_| {
+                observed_notifications.fetch_add(1, Ordering::Relaxed);
+            }));
         let payload = b"chunk".to_vec();
         let expected = sha256(&payload);
         let calls = Arc::new(AtomicUsize::new(0));
@@ -715,6 +736,7 @@ mod tests {
             b"chunk"
         );
         assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert_eq!(notifications.load(Ordering::Relaxed), 1);
     }
 
     #[tokio::test]
