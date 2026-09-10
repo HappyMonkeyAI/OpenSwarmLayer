@@ -503,6 +503,26 @@ mod tests {
     }
 
     #[test]
+    fn malformed_bounded_inputs_never_panic() {
+        for seed in 0_u16..512 {
+            let mut bytes = Vec::with_capacity(96);
+            let mut state = u32::from(seed).wrapping_add(1);
+            for _ in 0..96 {
+                state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                bytes.push((state >> 24) as u8);
+            }
+            if seed % 2 == 0 {
+                bytes[..4].copy_from_slice(b"GGUF");
+            }
+            let mut file = NamedTempFile::new().unwrap();
+            file.write_all(&bytes).unwrap();
+            let result = std::panic::catch_unwind(|| inspect(file.path()));
+            assert!(result.is_ok(), "parser panicked for seed {seed}");
+            assert!(result.unwrap().is_err(), "accepted malformed seed {seed}");
+        }
+    }
+
+    #[test]
     fn dtype_size_checks_block_alignment() {
         assert_eq!(ggml_tensor_size(0, &[2]).unwrap(), 8);
         assert!(ggml_tensor_size(2, &[31]).is_err());
