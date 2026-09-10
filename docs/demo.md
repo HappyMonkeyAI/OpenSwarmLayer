@@ -49,8 +49,8 @@ rewrite arbitrary origin URLs supplied through `HTTP_PROXY` or `HTTPS_PROXY`.
 The clean-checkout equivalent of the two-process transfer and proxy response check is:
 
 ```text
-cargo test -p ts-proxy manifest_router_fetches_missing_tensor_from_lan_peer -- --exact --nocapture
-cargo test -p ts-p2p two_local_nodes_transfer_a_verified_chunk -- --exact --nocapture
+cargo test -p ts-proxy manifest_router_fetches_missing_tensor_from_lan_peer -- --nocapture
+cargo test -p ts-p2p two_local_nodes_transfer_a_verified_chunk -- --nocapture
 ```
 
 These tests create loopback nodes, transfer verified content, and assert the HTTP
