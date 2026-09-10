@@ -115,7 +115,10 @@ impl LanClient {
                             PeerResponse::Error { code, .. } => {
                                 anyhow::bail!("peer rejected chunk: {code:?}")
                             }
-                            _ => anyhow::bail!("peer returned an invalid chunk response"),
+                            _ => {
+                                let _ = self.swarm.disconnect_peer_id(peer);
+                                anyhow::bail!("peer returned an invalid chunk response")
+                            }
                         },
                         SwarmEvent::Behaviour(LanBehaviourEvent::RequestResponse(
                             Event::OutboundFailure {
