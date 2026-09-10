@@ -28,6 +28,26 @@ ts-cli proxy-manifest 127.0.0.1:9090 model.tswarm .tswarm-cache https://model.ex
 Clients can request `http://127.0.0.1:9090/file/<manifest-path>` directly. Transparent
 `HTTP_PROXY`/`HTTPS_PROXY` origin-url handling remains a tracked M4-09 task.
 
+### Python client example
+
+The supported client integration uses the proxy URL explicitly. This works with
+`requests` and preserves normal range requests used by model loaders:
+
+```python
+import requests
+
+proxy_file = "http://127.0.0.1:9090/file/model.safetensors"
+with requests.get(proxy_file, stream=True, timeout=30) as response:
+    response.raise_for_status()
+    with open("model.safetensors", "wb") as output:
+        for block in response.iter_content(chunk_size=1024 * 1024):
+            if block:
+                output.write(block)
+```
+
+Do not set `HTTP_PROXY` or `HTTPS_PROXY` and expect arbitrary origin URLs to be
+rewritten yet; transparent environment-variable integration is not implemented.
+
 ## Local verification
 
 Once Rust is installed, run:
