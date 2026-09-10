@@ -136,6 +136,75 @@ impl LanClient {
         }
         anyhow::bail!("chunk request exhausted retries: {last_failure}")
     }
+
+    pub async fn query_have(
+        &mut self,
+        peer: libp2p::PeerId,
+        hashes: Vec<Hash32>,
+    ) -> anyhow::Result<Availability> {
+        use futures::StreamExt;
+        use libp2p::request_response::{Event, Message};
+        use libp2p::swarm::SwarmEvent;
+        use std::time::Duration;
+
+        anyhow::ensure!(!hashes.is_empty(), "Have query must contain hashes");
+        anyhow::ensure!(
+            hashes.len() <= MAX_HAVE_HASHES,
+            "Have query exceeds the hash limit"
+        );
+        let request = PeerRequest::Have {
+            hashes: hashes.clone(),
+        };
+        let outbound = if self.swarm.is_connected(&peer) {
+            Some(
+                self.swarm
+                    .behaviour_mut()
+                    .request_response
+                    .send_request(&peer, request.clone()),
+            )
+        } else {
+            None
+        };
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mut outbound = outbound;
+            loop {
+                match self.swarm.select_next_some().await {
+                    SwarmEvent::ConnectionEstablished { peer_id, .. } if peer_id == peer => {
+                        outbound = Some(
+                            self.swarm
+                                .behaviour_mut()
+                                .request_response
+                                .send_request(&peer, request.clone()),
+                        );
+                    }
+                    SwarmEvent::Behaviour(LanBehaviourEvent::RequestResponse(Event::Message {
+                        message:
+                            Message::Response {
+                                request_id,
+                                response: PeerResponse::Have { hashes },
+                            },
+                        ..
+                    })) if Some(request_id) == outbound => {
+                        let mut availability = Availability::default();
+                        for hash in hashes {
+                            availability.insert(hash);
+                        }
+                        return Ok(availability);
+                    }
+                    SwarmEvent::Behaviour(LanBehaviourEvent::RequestResponse(
+                        Event::OutboundFailure {
+                            request_id, error, ..
+                        },
+                    )) if Some(request_id) == outbound => {
+                        anyhow::bail!("Have request failed: {error}");
+                    }
+                    _ => {}
+                }
+            }
+        })
+        .await
+        .map_err(|_| anyhow::anyhow!("Have request timed out"))?
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -242,6 +311,7 @@ impl ChunkProvider {
                     .into_iter()
                     .filter(|hash| {
                         self.chunks.keys().any(|(tensor, _)| tensor == hash)
+                            || self.chunks.values().any(|bytes| sha256(bytes) == *hash)
                             || self.manifests.contains_key(hash)
                     })
                     .collect(),
@@ -380,6 +450,7 @@ pub const MANIFEST_PROTOCOL: &str = "/ts-p2p/manifest/1";
 pub const CHUNK_PROTOCOL: &str = "/ts-p2p/chunk/1";
 pub const MAX_CHUNKS_PER_REQUEST: usize = 64;
 pub const MAX_CHUNK_BYTES: usize = 16 * 1024 * 1024;
+pub const MAX_HAVE_HASHES: usize = 256;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ChunkRequest {
@@ -580,6 +651,18 @@ impl Availability {
     }
     pub fn contains(&self, hash: &Hash32) -> bool {
         self.hashes.contains(hash)
+    }
+    pub fn len(&self) -> usize {
+        self.hashes.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.hashes.is_empty()
+    }
+    pub fn missing_from(&self, requested: impl IntoIterator<Item = Hash32>) -> Vec<Hash32> {
+        requested
+            .into_iter()
+            .filter(|hash| !self.contains(hash))
+            .collect()
     }
     pub fn retain_requested(&mut self, requested: impl IntoIterator<Item = Hash32>) {
         let wanted = requested.into_iter().collect::<HashSet<_>>();
@@ -794,6 +877,15 @@ mod tests {
 
         let mut client = LanClient::new(build_lan_swarm_with_listeners(&[]).unwrap());
         client.swarm_mut().dial(address).unwrap();
+        let availability = client
+            .query_have(server_id, vec![expected, Hash32([9; 32])])
+            .await
+            .unwrap();
+        assert!(availability.contains(&expected));
+        assert_eq!(
+            availability.missing_from(vec![expected, Hash32([9; 32])]),
+            vec![Hash32([9; 32])]
+        );
         let response = client
             .fetch_chunk(
                 server_id,
