@@ -862,6 +862,94 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn manifest_router_fetches_missing_tensor_from_lan_peer() {
+        let provider_payload = b"tensor".to_vec();
+        let tensor_hash = sha256(b"tensor-identity");
+        let chunk_hash = sha256(&provider_payload);
+        let mut provider = ts_p2p::ChunkProvider::default();
+        provider
+            .insert_chunk(tensor_hash, 0, chunk_hash, provider_payload)
+            .unwrap();
+        let server = ts_p2p::build_lan_swarm_with_listeners(&["/ip4/127.0.0.1/tcp/0"]).unwrap();
+        let server_id = *server.local_peer_id();
+        let (address_tx, address_rx) = tokio::sync::oneshot::channel();
+        let server_task = tokio::spawn(ts_p2p::run_lan_node_with_provider_and_notify(
+            server,
+            provider,
+            Some(address_tx),
+        ));
+        let address = address_rx
+            .await
+            .unwrap()
+            .with(libp2p::multiaddr::Protocol::P2p(server_id.into()));
+        let client = Arc::new(tokio::sync::Mutex::new(ts_p2p::LanClient::new(
+            ts_p2p::build_lan_swarm_with_listeners(&[]).unwrap(),
+        )));
+        client.lock().await.swarm_mut().dial(address).unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let manifest = Manifest::new(
+            ts_core::ArtifactFormat::Safetensors,
+            10,
+            vec![ts_core::TensorNode {
+                descriptor: ts_core::TensorDescriptor {
+                    name: "weight".into(),
+                    shape: vec![6],
+                    dtype: "U8".into(),
+                    byte_len: 6,
+                },
+                tensor_hash,
+                chunks: vec![ChunkRef {
+                    index: 0,
+                    offset: 0,
+                    length: 6,
+                    hash: chunk_hash,
+                }],
+            }],
+            vec![ts_core::FileRecipe {
+                path: "model.safetensors".into(),
+                format: ts_core::ArtifactFormat::Safetensors,
+                file_size: 10,
+                segments: vec![
+                    Segment::Literal {
+                        offset: 0,
+                        bytes: b"head".to_vec(),
+                    },
+                    Segment::Tensor {
+                        offset: 4,
+                        tensor_hash,
+                        tensor_offset: 0,
+                        length: 6,
+                    },
+                ],
+            }],
+        );
+        let app = manifest_router(ManifestProxyState {
+            manifest,
+            origin_url: "https://invalid.example/model.safetensors".into(),
+            engine: FetchEngine::new(ts_store::ObjectStore::open(root.path()).unwrap()),
+            peer: Some(lan_peer_fetch(client, server_id, 3)),
+        });
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/file/model.safetensors")
+                    .header(header::RANGE, "bytes=2-7")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        server_task.abort();
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(response.headers()[header::CONTENT_RANGE], "bytes 2-7/10");
+        assert_eq!(response.headers()[header::CONTENT_LENGTH], "6");
+        assert_eq!(
+            to_bytes(response.into_body(), usize::MAX).await.unwrap(),
+            "adtens"
+        );
+    }
+
     #[test]
     fn resolver_validates_manifest_path_and_normalizes_https_base() {
         let manifest = Manifest::new(
