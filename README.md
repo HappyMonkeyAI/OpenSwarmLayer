@@ -11,6 +11,7 @@ parse -> manifest -> verified cache -> LAN transfer -> HTTP/WebSeed proxy
 ```
 
 See [PLAN.md](PLAN.md) for milestones and [TASKS.md](TASKS.md) for the executable task board.
+See [docs/demo.md](docs/demo.md) for clean-checkout two-node demonstration steps.
 
 To run a seeding node from a manifest and verified chunk store:
 
