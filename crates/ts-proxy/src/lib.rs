@@ -740,6 +740,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fetch_engine_rejects_origin_outage_without_cache_write() {
+        let root = tempfile::tempdir().unwrap();
+        let store = ts_store::ObjectStore::open(root.path()).unwrap();
+        let expected = sha256(b"missing");
+        let engine = FetchEngine::new(store.clone());
+        let error = engine
+            .fetch_chunk("http://127.0.0.1:1/unavailable", 0..7, expected, None)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("WebSeed"));
+        assert!(!store.contains(expected));
+    }
+
+    #[tokio::test]
     async fn manifest_range_assembles_literal_and_tensor_bytes() {
         let root = tempfile::tempdir().unwrap();
         let engine = FetchEngine::new(ts_store::ObjectStore::open(root.path()).unwrap());
