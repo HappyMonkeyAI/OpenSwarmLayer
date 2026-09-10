@@ -92,7 +92,7 @@ async fn main() -> Result<()> {
                 &model_path,
             )?;
             let store = ts_store::ObjectStore::open(PathBuf::from(store_root))?;
-            let peer = if let Some((peer_id, peer_address)) = peer_config {
+            let (peer, provider_notify) = if let Some((peer_id, peer_address)) = peer_config {
                 let peer_id = peer_id
                     .to_str()
                     .context("peer ID must be valid UTF-8")?
@@ -107,14 +107,31 @@ async fn main() -> Result<()> {
                     ts_p2p::build_lan_swarm_with_listeners(&[])?,
                 )));
                 client.lock().await.swarm_mut().dial(peer_address)?;
-                Some(ts_proxy::lan_peer_fetch(client, peer_id, 3))
+                let notify_client = std::sync::Arc::clone(&client);
+                let notify = std::sync::Arc::new(move |hash: ts_core::Hash32| {
+                    let client = std::sync::Arc::clone(&notify_client);
+                    tokio::spawn(async move {
+                        let mut client = client.lock().await;
+                        let _ = ts_p2p::publish_tensor(client.swarm_mut(), &hash);
+                    });
+                });
+                (
+                    Some(ts_proxy::lan_peer_fetch(client, peer_id, 3)),
+                    Some(notify),
+                )
             } else {
-                None
+                (None, None)
+            };
+            let engine = match provider_notify {
+                Some(notify) => {
+                    ts_proxy::FetchEngine::new(store).with_verified_chunk_notify(notify)
+                }
+                None => ts_proxy::FetchEngine::new(store),
             };
             let config = ts_proxy::ManifestProxyState {
                 manifest,
                 origin_url,
-                engine: ts_proxy::FetchEngine::new(store),
+                engine,
                 peer,
             };
             println!("manifest proxy: http://{bind}/file/<manifest-path>");
