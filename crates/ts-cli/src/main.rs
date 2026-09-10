@@ -61,13 +61,22 @@ async fn main() -> Result<()> {
             };
             let manifest: ts_core::Manifest = serde_cbor::from_slice(&fs::read(manifest_path)?)?;
             anyhow::ensure!(manifest.verify_root(), "manifest self-check failed");
+            let model_path = manifest
+                .files
+                .first()
+                .context("manifest has no file recipe")?
+                .path
+                .clone();
+            let origin_url = ts_proxy::resolve_origin_url(
+                origin_url
+                    .to_str()
+                    .context("origin URL must be valid UTF-8")?,
+                &model_path,
+            )?;
             let store = ts_store::ObjectStore::open(PathBuf::from(store_root))?;
             let config = ts_proxy::ManifestProxyState {
                 manifest,
-                origin_url: origin_url
-                    .to_str()
-                    .context("origin URL must be valid UTF-8")?
-                    .to_string(),
+                origin_url,
                 engine: ts_proxy::FetchEngine::new(store),
                 peer: None,
             };

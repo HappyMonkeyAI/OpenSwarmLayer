@@ -414,6 +414,37 @@ pub struct FileProxyState {
     pub root: Arc<PathBuf>,
 }
 
+pub fn resolve_manifest_path<'a>(
+    manifest: &'a Manifest,
+    requested_path: &str,
+) -> anyhow::Result<&'a str> {
+    let recipe = manifest
+        .files
+        .first()
+        .context("manifest has no file recipe")?;
+    anyhow::ensure!(!requested_path.is_empty(), "model path is empty");
+    anyhow::ensure!(
+        !requested_path.split('/').any(|part| part == ".."),
+        "model path contains traversal"
+    );
+    anyhow::ensure!(
+        requested_path == recipe.path,
+        "model path is not in manifest"
+    );
+    Ok(&recipe.path)
+}
+
+pub fn resolve_origin_url(origin_url: &str, model_path: &str) -> anyhow::Result<String> {
+    let mut url = reqwest::Url::parse(origin_url).context("origin URL is invalid")?;
+    anyhow::ensure!(url.scheme() == "https", "origin URL must use HTTPS");
+    if url.path().is_empty() || url.path().ends_with('/') {
+        let base = url.path().trim_end_matches('/');
+        let suffix = model_path.trim_start_matches('/');
+        url.set_path(&format!("{base}/{suffix}"));
+    }
+    Ok(url.to_string())
+}
+
 #[derive(Clone)]
 pub struct ManifestProxyState {
     pub manifest: Manifest,
@@ -526,10 +557,14 @@ async fn serve_manifest_file(
     AxumPath(path): AxumPath<String>,
     request: Request<Body>,
 ) -> Result<Response, StatusCode> {
-    let recipe = state.manifest.files.first().ok_or(StatusCode::NOT_FOUND)?;
-    if path != recipe.path {
-        return Err(StatusCode::NOT_FOUND);
-    }
+    let recipe_path =
+        resolve_manifest_path(&state.manifest, &path).map_err(|_| StatusCode::NOT_FOUND)?;
+    let recipe = state
+        .manifest
+        .files
+        .iter()
+        .find(|recipe| recipe.path == recipe_path)
+        .ok_or(StatusCode::NOT_FOUND)?;
     let file_size = recipe.file_size;
     let range = request
         .headers()
@@ -762,5 +797,33 @@ mod tests {
             to_bytes(response.into_body(), usize::MAX).await.unwrap(),
             "adtens"
         );
+    }
+
+    #[test]
+    fn resolver_validates_manifest_path_and_normalizes_https_base() {
+        let manifest = Manifest::new(
+            ts_core::ArtifactFormat::Safetensors,
+            1,
+            vec![],
+            vec![ts_core::FileRecipe {
+                path: "models/model.safetensors".into(),
+                format: ts_core::ArtifactFormat::Safetensors,
+                file_size: 1,
+                segments: vec![Segment::Literal {
+                    offset: 0,
+                    bytes: vec![1],
+                }],
+            }],
+        );
+        assert_eq!(
+            resolve_manifest_path(&manifest, "models/model.safetensors").unwrap(),
+            "models/model.safetensors"
+        );
+        assert_eq!(
+            resolve_origin_url("https://cdn.example/models/", "model.safetensors").unwrap(),
+            "https://cdn.example/models/model.safetensors"
+        );
+        assert!(resolve_manifest_path(&manifest, "../model.safetensors").is_err());
+        assert!(resolve_origin_url("http://cdn.example/", "model.safetensors").is_err());
     }
 }
