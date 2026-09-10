@@ -645,6 +645,32 @@ pub struct Availability {
     hashes: HashSet<Hash32>,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct PeerScore {
+    pub same_lan: bool,
+    pub successes: u32,
+    pub failures: u32,
+    pub latency_ms: u32,
+}
+
+impl PeerScore {
+    pub fn value(self) -> i64 {
+        let lan_bonus = if self.same_lan { 1_000 } else { 0 };
+        lan_bonus + i64::from(self.successes) * 10
+            - i64::from(self.failures) * 25
+            - i64::from(self.latency_ms.min(10_000))
+    }
+}
+
+pub fn select_peer(
+    candidates: impl IntoIterator<Item = (libp2p::PeerId, PeerScore)>,
+) -> Option<libp2p::PeerId> {
+    candidates
+        .into_iter()
+        .max_by_key(|(_, score)| score.value())
+        .map(|(peer, _)| peer)
+}
+
 impl Availability {
     pub fn insert(&mut self, hash: Hash32) {
         self.hashes.insert(hash);
@@ -829,6 +855,33 @@ mod tests {
         assert_eq!(scheduler.len(), 2);
         assert!(scheduler.pop_batch(8).len() <= 8);
         assert!(scheduler.is_empty());
+    }
+
+    #[test]
+    fn peer_selection_prefers_same_lan_and_then_health() {
+        let lan_peer = libp2p::PeerId::random();
+        let remote_peer = libp2p::PeerId::random();
+        let selected = select_peer([
+            (
+                remote_peer,
+                PeerScore {
+                    same_lan: false,
+                    successes: 20,
+                    failures: 0,
+                    latency_ms: 1,
+                },
+            ),
+            (
+                lan_peer,
+                PeerScore {
+                    same_lan: true,
+                    successes: 0,
+                    failures: 0,
+                    latency_ms: 20,
+                },
+            ),
+        ]);
+        assert_eq!(selected, Some(lan_peer));
     }
 
     #[tokio::test]
