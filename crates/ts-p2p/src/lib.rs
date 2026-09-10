@@ -36,6 +36,22 @@ impl LanClient {
         request: ChunkRequest,
         max_attempts: u8,
     ) -> anyhow::Result<Vec<u8>> {
+        self.fetch_chunk_with_cancel(
+            peer,
+            request,
+            max_attempts,
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await
+    }
+
+    pub async fn fetch_chunk_with_cancel(
+        &mut self,
+        peer: libp2p::PeerId,
+        request: ChunkRequest,
+        max_attempts: u8,
+        cancel: tokio_util::sync::CancellationToken,
+    ) -> anyhow::Result<Vec<u8>> {
         use futures::StreamExt;
         use libp2p::request_response::{Event, Message};
         use libp2p::swarm::SwarmEvent;
@@ -58,7 +74,9 @@ impl LanClient {
             } else {
                 None
             };
-            let result = tokio::time::timeout(Duration::from_secs(5), async {
+            let result = tokio::select! {
+                _ = cancel.cancelled() => anyhow::bail!("chunk request cancelled"),
+                result = tokio::time::timeout(Duration::from_secs(5), async {
                 let mut outbound = request_id;
                 loop {
                     match self.swarm.select_next_some().await {
@@ -108,8 +126,8 @@ impl LanClient {
                         _ => {}
                     }
                 }
-            })
-            .await;
+                }) => result,
+            };
             match result {
                 Ok(Ok(bytes)) => return Ok(bytes),
                 Ok(Err(error)) => last_failure = error.to_string(),
@@ -545,6 +563,10 @@ impl FetchScheduler {
     pub fn is_empty(&self) -> bool {
         self.queue.is_empty()
     }
+
+    pub fn pop_batch(&mut self, limit: usize) -> Vec<FetchJob> {
+        (0..limit).filter_map(|_| self.pop()).collect()
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -701,6 +723,50 @@ mod tests {
         scheduler.push(make(0, 0));
         assert_eq!(scheduler.len(), 2);
         assert_eq!(scheduler.pop().unwrap().priority.stage, 0);
+    }
+
+    #[test]
+    fn scheduler_pop_batch_is_bounded_and_removes_jobs() {
+        let mut scheduler = FetchScheduler::default();
+        for index in 0..4 {
+            scheduler.push(FetchJob {
+                priority: FetchPriority {
+                    stage: index,
+                    urgency: 0,
+                },
+                request: ChunkRequest {
+                    request_id: index as u64,
+                    tensor_hash: Hash32([index as u8; 32]),
+                    chunk_index: 0,
+                    expected_hash: Hash32::ZERO,
+                },
+            });
+        }
+        assert_eq!(scheduler.pop_batch(2).len(), 2);
+        assert_eq!(scheduler.len(), 2);
+        assert!(scheduler.pop_batch(8).len() <= 8);
+        assert!(scheduler.is_empty());
+    }
+
+    #[tokio::test]
+    async fn chunk_fetch_honors_cancellation_before_network_work() {
+        let mut client = LanClient::new(build_lan_swarm_with_listeners(&[]).unwrap());
+        let cancel = tokio_util::sync::CancellationToken::new();
+        cancel.cancel();
+        let result = client
+            .fetch_chunk_with_cancel(
+                libp2p::PeerId::random(),
+                ChunkRequest {
+                    request_id: 1,
+                    tensor_hash: Hash32::ZERO,
+                    chunk_index: 0,
+                    expected_hash: Hash32::ZERO,
+                },
+                1,
+                cancel,
+            )
+            .await;
+        assert_eq!(result.unwrap_err().to_string(), "chunk request cancelled");
     }
 
     #[tokio::test]
