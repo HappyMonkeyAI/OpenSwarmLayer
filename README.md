@@ -14,6 +14,7 @@ See [PLAN.md](PLAN.md) for milestones and [TASKS.md](TASKS.md) for the executabl
 See [docs/demo.md](docs/demo.md) for clean-checkout two-node demonstration steps.
 See [docs/benchmarks.md](docs/benchmarks.md) for the measured primitive benchmark snapshot.
 See [docs/owner-adversary-review.md](docs/owner-adversary-review.md) for the current MVP gate review.
+See [PROGRESS.md](PROGRESS.md) for the current continuation handoff.
 
 To run a seeding node from a manifest and verified chunk store:
 
