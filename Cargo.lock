@@ -3172,6 +3172,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "libp2p",
  "reqwest",
  "sha2",
  "tempfile",
@@ -3180,6 +3181,7 @@ dependencies = [
  "tokio-util",
  "tower",
  "ts-core",
+ "ts-p2p",
  "ts-store",
 ]
 

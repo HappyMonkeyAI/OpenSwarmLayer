@@ -83,12 +83,38 @@ impl WebSeeder {
 pub type PeerFetch = Arc<
     dyn Fn(
             Hash32,
+            u32,
             Range<u64>,
             Hash32,
         ) -> Pin<Box<dyn Future<Output = anyhow::Result<Vec<u8>>> + Send>>
         + Send
         + Sync,
 >;
+
+pub fn lan_peer_fetch(
+    client: Arc<tokio::sync::Mutex<ts_p2p::LanClient>>,
+    peer: libp2p::PeerId,
+    max_attempts: u8,
+) -> PeerFetch {
+    Arc::new(move |tensor_hash, chunk_index, _range, expected_hash| {
+        let client = Arc::clone(&client);
+        Box::pin(async move {
+            let mut client = client.lock().await;
+            client
+                .fetch_chunk(
+                    peer,
+                    ts_p2p::ChunkRequest {
+                        request_id: 0,
+                        tensor_hash,
+                        chunk_index,
+                        expected_hash,
+                    },
+                    max_attempts,
+                )
+                .await
+        })
+    })
+}
 
 #[derive(Clone)]
 pub struct FetchEngine {
@@ -113,6 +139,19 @@ impl FetchEngine {
         expected: Hash32,
         peer: Option<PeerFetch>,
     ) -> anyhow::Result<Vec<u8>> {
+        self.fetch_chunk_with_identity(url, range, expected, expected, 0, peer)
+            .await
+    }
+
+    async fn fetch_chunk_with_identity(
+        &self,
+        url: &str,
+        range: Range<u64>,
+        expected: Hash32,
+        tensor_hash: Hash32,
+        chunk_index: u32,
+        peer: Option<PeerFetch>,
+    ) -> anyhow::Result<Vec<u8>> {
         if self.store.contains(expected) {
             return Ok(self.store.get(expected)?);
         }
@@ -122,7 +161,7 @@ impl FetchEngine {
         }
         let mut peer_error = None;
         if let Some(fetch) = peer {
-            match fetch(expected, range.clone(), expected).await {
+            match fetch(tensor_hash, chunk_index, range.clone(), expected).await {
                 Ok(bytes) if bytes.len() as u64 == expected_len && sha256(&bytes) == expected => {
                     self.store.put_verified(expected, &bytes)?;
                     return Ok(bytes);
@@ -221,10 +260,12 @@ impl FetchEngine {
                             .checked_add(chunk.length)
                             .context("origin range overflow")?;
                         let bytes = self
-                            .fetch_chunk(
+                            .fetch_chunk_with_identity(
                                 origin_url,
                                 origin_start..origin_end,
                                 chunk.hash,
+                                *tensor_hash,
+                                chunk.index,
                                 peer.clone(),
                             )
                             .await?;
@@ -654,7 +695,7 @@ mod tests {
         let expected = sha256(&payload);
         let calls = Arc::new(AtomicUsize::new(0));
         let observed = Arc::clone(&calls);
-        let peer: PeerFetch = Arc::new(move |_, _, _| {
+        let peer: PeerFetch = Arc::new(move |_, _, _, _| {
             observed.fetch_add(1, Ordering::Relaxed);
             let payload = payload.clone();
             Box::pin(async move { Ok(payload) })
@@ -719,7 +760,7 @@ mod tests {
                 ],
             }],
         );
-        let peer: PeerFetch = Arc::new(move |_, _, _| {
+        let peer: PeerFetch = Arc::new(move |_, _, _, _| {
             let payload = payload.clone();
             Box::pin(async move { Ok(payload) })
         });

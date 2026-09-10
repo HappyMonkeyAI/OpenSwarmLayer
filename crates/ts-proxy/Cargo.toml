@@ -7,10 +7,12 @@ license.workspace = true
 [dependencies]
 ts-core = { path = "../ts-core" }
 ts-store = { path = "../ts-store" }
+ts-p2p = { path = "../ts-p2p" }
+libp2p = "0.56"
 anyhow.workspace = true
 thiserror.workspace = true
 axum = "0.8"
-tokio = { version = "1", features = ["fs", "io-util", "net", "rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["fs", "io-util", "net", "rt-multi-thread", "macros", "sync"] }
 tokio-util = { version = "0.7", features = ["io"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
 sha2 = "0.10"
