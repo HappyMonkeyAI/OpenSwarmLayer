@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: 8b02ae1 Add verified cache repair operation
+HEAD: 8471b27 Persist per-tensor verified bitmaps
 
 ## Completed this session
 
