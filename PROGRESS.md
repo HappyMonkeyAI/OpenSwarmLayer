@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: 70d22e3 Format HTTPS acceptance test
+HEAD: 8a62ea4 Wire live DHT publication events
 
 ## Completed this session
 
