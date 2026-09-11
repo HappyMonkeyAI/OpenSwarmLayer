@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
+use std::sync::Arc;
 use ts_core::{sha256, Hash32, Manifest};
 
 #[derive(libp2p::swarm::NetworkBehaviour)]
@@ -17,10 +19,41 @@ pub struct LanBehaviour {
 
 pub type LanSwarm = libp2p::Swarm<LanBehaviour>;
 
+#[derive(Default)]
+pub struct TransferMetrics {
+    attempts: AtomicU64,
+    successful_chunks: AtomicU64,
+    failed_requests: AtomicU64,
+    cancellations: AtomicU64,
+    bytes_transferred: AtomicU64,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct TransferMetricsSnapshot {
+    pub attempts: u64,
+    pub successful_chunks: u64,
+    pub failed_requests: u64,
+    pub cancellations: u64,
+    pub bytes_transferred: u64,
+}
+
+impl TransferMetrics {
+    fn snapshot(&self) -> TransferMetricsSnapshot {
+        TransferMetricsSnapshot {
+            attempts: self.attempts.load(AtomicOrdering::Relaxed),
+            successful_chunks: self.successful_chunks.load(AtomicOrdering::Relaxed),
+            failed_requests: self.failed_requests.load(AtomicOrdering::Relaxed),
+            cancellations: self.cancellations.load(AtomicOrdering::Relaxed),
+            bytes_transferred: self.bytes_transferred.load(AtomicOrdering::Relaxed),
+        }
+    }
+}
+
 pub struct LanClient {
     swarm: LanSwarm,
     in_flight: HashSet<libp2p::request_response::OutboundRequestId>,
     in_flight_peers: HashMap<libp2p::request_response::OutboundRequestId, libp2p::PeerId>,
+    metrics: Arc<TransferMetrics>,
 }
 
 impl LanClient {
@@ -29,6 +62,7 @@ impl LanClient {
             swarm,
             in_flight: HashSet::new(),
             in_flight_peers: HashMap::new(),
+            metrics: Arc::new(TransferMetrics::default()),
         }
     }
 
@@ -38,6 +72,15 @@ impl LanClient {
 
     pub fn in_flight(&self) -> usize {
         self.in_flight.len()
+    }
+
+    pub fn with_metrics(mut self, metrics: Arc<TransferMetrics>) -> Self {
+        self.metrics = metrics;
+        self
+    }
+
+    pub fn metrics(&self) -> TransferMetricsSnapshot {
+        self.metrics.snapshot()
     }
 
     fn send_request(
@@ -117,6 +160,7 @@ impl LanClient {
             chunks: vec![request.clone()],
         };
         for _attempt in 0..max_attempts {
+            self.metrics.attempts.fetch_add(1, AtomicOrdering::Relaxed);
             let request_id = if self.swarm.is_connected(&peer) {
                 Some(self.send_request(&peer, peer_request.clone())?)
             } else {
@@ -124,6 +168,7 @@ impl LanClient {
             };
             let result = tokio::select! {
                 _ = cancel.cancelled() => {
+                    self.metrics.cancellations.fetch_add(1, AtomicOrdering::Relaxed);
                     self.send_cancel(&peer, request.request_id);
                     let _ = tokio::time::timeout(Duration::from_millis(100), async {
                         loop {
@@ -164,6 +209,10 @@ impl LanClient {
                                 && sha256(&payload) == request.expected_hash =>
                             {
                                 self.finish_request(request_id);
+                                self.metrics.successful_chunks.fetch_add(1, AtomicOrdering::Relaxed);
+                                self.metrics
+                                    .bytes_transferred
+                                    .fetch_add(payload.len() as u64, AtomicOrdering::Relaxed);
                                 let _ = publish_tensor(&mut self.swarm, &request.tensor_hash);
                                 return Ok(payload)
                             }
@@ -192,12 +241,18 @@ impl LanClient {
             match result {
                 Ok(Ok(bytes)) => return Ok(bytes),
                 Ok(Err(error)) => {
+                    self.metrics
+                        .failed_requests
+                        .fetch_add(1, AtomicOrdering::Relaxed);
                     if let Some(request_id) = request_id {
                         self.finish_request(request_id);
                     }
                     last_failure = error.to_string();
                 }
                 Err(_) => {
+                    self.metrics
+                        .failed_requests
+                        .fetch_add(1, AtomicOrdering::Relaxed);
                     self.finish_peer_requests(&peer);
                     self.send_cancel(&peer, request.request_id);
                     last_failure = String::from("chunk request timed out");
@@ -1184,7 +1239,9 @@ mod tests {
             .unwrap()
             .with(libp2p::multiaddr::Protocol::P2p(server_id.into()));
 
-        let mut client = LanClient::new(build_lan_swarm_with_listeners(&[]).unwrap());
+        let metrics = Arc::new(TransferMetrics::default());
+        let mut client =
+            LanClient::new(build_lan_swarm_with_listeners(&[]).unwrap()).with_metrics(metrics);
         client.swarm_mut().dial(address).unwrap();
         let availability = client
             .query_have(server_id, vec![expected, Hash32([9; 32])])
@@ -1210,6 +1267,16 @@ mod tests {
             .unwrap();
         server_task.abort();
         assert_eq!(response, b"layer-zero");
+        assert_eq!(
+            client.metrics(),
+            TransferMetricsSnapshot {
+                attempts: 1,
+                successful_chunks: 1,
+                failed_requests: 0,
+                cancellations: 0,
+                bytes_transferred: 10,
+            }
+        );
     }
 
     #[tokio::test]

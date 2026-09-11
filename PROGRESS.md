@@ -35,6 +35,7 @@ HEAD: 8471b27 Persist per-tensor verified bitmaps
 - Added and passed the independent-process `ts-cli` LAN acceptance test: a spawned provider node serves a verified chunk to a separately spawned fetch process.
 - Added selective unreferenced-object repair to the content-addressed store; the live object is preserved and the dead object is removed by regression test.
 - Added JSON-safe per-tensor verified-chunk bitmaps with restart persistence and same-index isolation coverage.
+- Added `LanClient` transfer metric snapshots and asserted attempts, success, failures, cancellations, and bytes on the real two-node transfer.
 
 ## Recent commits
 
