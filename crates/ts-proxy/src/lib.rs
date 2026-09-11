@@ -35,6 +35,10 @@ impl Default for WebSeeder {
 }
 
 impl WebSeeder {
+    pub fn with_client(client: Client) -> Self {
+        Self { client }
+    }
+
     pub async fn fetch_verified(
         &self,
         url: &str,
@@ -990,5 +994,76 @@ mod tests {
         );
         assert!(resolve_manifest_path(&manifest, "../model.safetensors").is_err());
         assert!(resolve_origin_url("http://cdn.example/", "model.safetensors").is_err());
+    }
+
+    #[tokio::test]
+    async fn https_webseed_fallback_verifies_stores_and_notifies() {
+        use axum::routing::get;
+        use axum::Router;
+        use axum_server::tls_rustls::RustlsConfig;
+        use rcgen::generate_simple_self_signed;
+        use std::net::SocketAddr;
+
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        let payload = b"https-fallback".to_vec();
+        let expected = sha256(&payload);
+        let app = Router::new().route(
+            "/model.bin",
+            get({
+                let payload = payload.clone();
+                move |request: Request<Body>| {
+                    let payload = payload.clone();
+                    async move {
+                        let range = request
+                            .headers()
+                            .get(header::RANGE)
+                            .and_then(|value| value.to_str().ok())
+                            .unwrap_or("bytes=0-13");
+                        assert_eq!(range, "bytes=0-13");
+                        (StatusCode::PARTIAL_CONTENT, payload)
+                    }
+                }
+            }),
+        );
+        let cert = generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let cert_der = cert.cert.der().to_vec();
+        let client = Client::builder()
+            .add_root_certificate(reqwest::Certificate::from_der(&cert_der).unwrap())
+            .build()
+            .unwrap();
+        let tls = RustlsConfig::from_der(
+            vec![cert_der],
+            cert.key_pair.serialize_der(),
+        )
+        .await
+        .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address: SocketAddr = listener.local_addr().unwrap();
+        drop(listener);
+        let server = tokio::spawn(
+            axum_server::bind_rustls(address, tls)
+                .serve(app.into_make_service()),
+        );
+        let root = tempfile::tempdir().unwrap();
+        let store = ts_store::ObjectStore::open(root.path()).unwrap();
+        let notifications = Arc::new(AtomicUsize::new(0));
+        let observed = Arc::clone(&notifications);
+        let engine = FetchEngine {
+            store: store.clone(),
+            webseed: WebSeeder::with_client(client),
+            verified_chunk_notify: Some(Arc::new(move |_| {
+                observed.fetch_add(1, Ordering::Relaxed);
+            })),
+        };
+        let url = format!("https://localhost:{}/model.bin", address.port());
+        let bytes = engine
+            .fetch_chunk(&url, 0..14, expected, None)
+            .await
+            .unwrap();
+        server.abort();
+        assert_eq!(bytes, b"https-fallback");
+        assert_eq!(store.get(expected).unwrap(), b"https-fallback");
+        assert_eq!(notifications.load(Ordering::Relaxed), 1);
     }
 }
