@@ -15,6 +15,8 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 pub struct VerifiedChunks {
     pub manifest: Hash32,
     pub chunks: Vec<u32>,
+    #[serde(default)]
+    pub tensors: Vec<(Hash32, Vec<u32>)>,
 }
 
 impl VerifiedChunks {
@@ -25,6 +27,25 @@ impl VerifiedChunks {
     pub fn mark(&mut self, index: u32) {
         if let Err(position) = self.chunks.binary_search(&index) {
             self.chunks.insert(position, index);
+        }
+    }
+
+    pub fn contains_tensor(&self, tensor: Hash32, index: u32) -> bool {
+        self.tensors.iter().find_map(|(hash, chunks)| {
+            (*hash == tensor).then(|| chunks.binary_search(&index).is_ok())
+        }) == Some(true)
+    }
+
+    pub fn mark_tensor(&mut self, tensor: Hash32, index: u32) {
+        let position = self.tensors.iter().position(|(hash, _)| *hash == tensor);
+        let chunks = if let Some(position) = position {
+            &mut self.tensors[position].1
+        } else {
+            self.tensors.push((tensor, Vec::new()));
+            &mut self.tensors.last_mut().unwrap().1
+        };
+        if let Err(position) = chunks.binary_search(&index) {
+            chunks.insert(position, index);
         }
     }
 }
@@ -380,6 +401,7 @@ mod tests {
         let mut state = VerifiedChunks {
             manifest: sha256(b"manifest"),
             chunks: Vec::new(),
+            tensors: Vec::new(),
         };
         state.mark(8);
         state.mark(2);
@@ -389,5 +411,48 @@ mod tests {
         assert_eq!(restored.chunks, vec![2, 8]);
         assert!(restored.contains(8));
         assert!(!restored.contains(3));
+    }
+
+    #[test]
+    fn per_tensor_state_is_sorted_isolated_and_resumable() {
+        let root = tempfile::tempdir().unwrap();
+        let store = ObjectStore::open(root.path()).unwrap();
+        let first = sha256(b"first-tensor");
+        let second = sha256(b"second-tensor");
+        let mut state = VerifiedChunks {
+            manifest: sha256(b"manifest"),
+            chunks: Vec::new(),
+            tensors: Vec::new(),
+        };
+        state.mark_tensor(first, 8);
+        state.mark_tensor(first, 2);
+        state.mark_tensor(first, 8);
+        state.mark_tensor(second, 2);
+        store.save_state("model", &state).unwrap();
+
+        let restored = store.load_state("model").unwrap().unwrap();
+        assert!(restored.contains_tensor(first, 2));
+        assert!(restored.contains_tensor(first, 8));
+        assert!(!restored.contains_tensor(first, 3));
+        assert!(restored.contains_tensor(second, 2));
+        assert!(!restored.contains_tensor(second, 8));
+        assert_eq!(
+            restored
+                .tensors
+                .iter()
+                .find(|(hash, _)| *hash == first)
+                .unwrap()
+                .1,
+            vec![2, 8]
+        );
+        assert_eq!(
+            restored
+                .tensors
+                .iter()
+                .find(|(hash, _)| *hash == second)
+                .unwrap()
+                .1,
+            vec![2]
+        );
     }
 }

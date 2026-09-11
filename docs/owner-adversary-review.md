@@ -15,7 +15,7 @@ Status vocabulary:
 |---|---|---|
 | Local GGUF/Safetensors inspection | PASS | Header-only parsers, bounds checks, representative `.gguf`/`.safetensors` fixture routing and metadata tests, generated chunk properties, and a bounded libFuzzer target are present. Ubuntu WSL2 executed 1,000 bounded runs with 219 coverage features and no crash. |
 | Deterministic identity and manifests | PASS | Manifest root and serialization tests pass; parser and manifest commands are implemented. |
-| Verified storage and materialization | PASS | Hash-verified CAS writes, byte reconstruction, restart-persistent verified state, reachability scanning, and selective unreferenced-object repair tests pass. Per-tensor bitmap integration remains outside this slice. |
+| Verified storage and materialization | PASS | Hash-verified CAS writes, byte reconstruction, restart-persistent per-tensor verified state with index isolation, reachability scanning, and selective unreferenced-object repair tests pass. |
 | LAN authenticated transfer | PASS | The independent-process `ts-cli` acceptance test spawns a manifest-backed provider node and a separate fetch process; Node B retrieves and verifies the chunk over the authenticated LAN transport. |
 | Kademlia provider discovery | PASS | `second_node_discovers_seeded_tensor_provider_through_dht` connects a second swarm, waits for routing-table admission, and verifies the seeded tensor provider is returned by `get_providers`. |
 | Bounded transfer behavior | PASS | Chunk fetches send `Cancel` on cancellation/timeout, flush the wire signal within a bounded window, release peer-associated in-flight state, and the delayed-peer integration fixture verifies peer observation. |
