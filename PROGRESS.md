@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: f79f23b Update peer scores from transfer outcomes
+HEAD: 4a64819 Reconcile completed milestone ledger
 
 ## Completed this session
 
