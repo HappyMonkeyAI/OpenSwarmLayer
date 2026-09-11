@@ -22,6 +22,7 @@ HEAD: a185742 Record DHT discovery acceptance evidence
 - Added the owner/adversary review; MVP remains explicitly blocked.
 - Added a bounded two-node Kademlia provider-discovery acceptance test that proves a second node finds a seeded tensor provider.
 - Added bounded LAN request accounting and wire cancellation signaling for chunk fetches.
+- Added malicious-peer integration fixtures covering wrong hashes and oversized responses.
 
 ## Recent commits
 
@@ -47,7 +48,7 @@ The latest full workspace verification passed:
 - `cargo test --workspace`
 - `git diff --check`
 
-Current unit-test counts are 1 (`ts-core`), 8 (`ts-format`), 11 (`ts-p2p`), 8 (`ts-proxy`), 4 (`ts-store`), and 0 (`ts-cli`), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
+Current unit-test counts are 1 (`ts-core`), 8 (`ts-format`), 13 (`ts-p2p`), 8 (`ts-proxy`), 4 (`ts-store`), and 0 (`ts-cli`), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
 
 ## MVP decision
 
@@ -57,17 +58,16 @@ Do not declare the MVP complete. The owner/adversary review in
 Remaining acceptance gaps:
 
 1. Add an integration fixture proving peer-observed cancellation and bounded in-flight behavior; current coverage verifies signaling and local accounting but not a delayed peer.
-2. Add malicious-peer integration fixtures for wrong hashes and oversized frames.
-3. Add and run a dedicated bounded fuzz target; current coverage is corpus plus `proptest` only.
-4. Prove successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.
-5. Decide whether transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is required; it is currently unsupported and documented as such.
-6. Re-run the review from a clean checkout and record owner approval.
+2. Add and run a dedicated bounded fuzz target; current coverage is corpus plus `proptest` only.
+3. Prove successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.
+4. Decide whether transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is required; it is currently unsupported and documented as such.
+5. Re-run the review from a clean checkout and record owner approval.
 
 ## Recommended first slice tomorrow
 
-Start with malicious-peer integration fixtures for wrong hashes and oversized frames.
-Keep the fixtures bounded and leave the repository clean after formatting, workspace
-tests, and `git diff --check`.
+Start with a dedicated bounded fuzz target for the parser/protocol boundary. Keep the
+target reproducible and leave the repository clean after formatting, workspace tests,
+and `git diff --check`.
 
 ## Reporting note
 

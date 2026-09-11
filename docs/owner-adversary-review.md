@@ -18,7 +18,7 @@ Status vocabulary:
 | LAN authenticated transfer | PARTIAL | Loopback nodes transfer verified chunks and use QUIC/TCP, Noise, and Yamux. The bounded acceptance coverage is still in-process rather than two independently spawned OS processes. |
 | Kademlia provider discovery | PASS | `second_node_discovers_seeded_tensor_provider_through_dht` connects a second swarm, waits for routing-table admission, and verifies the seeded tensor provider is returned by `get_providers`. |
 | Bounded transfer behavior | PARTIAL | Chunk fetches now send `Cancel` on cancellation/timeout and account for bounded outbound requests. A delayed-peer integration fixture is still needed to prove peer-observed cancellation and sustained in-flight limits. |
-| Corrupt-peer handling | PARTIAL | Invalid decoded responses are rejected and disconnected without CAS writes. A malicious-peer integration fixture for wrong hashes and oversized frames is still missing. |
+| Corrupt-peer handling | PASS | Malicious-peer integration fixtures send wrong hashes and oversized payloads; the client rejects both and does not accept the payload. |
 | HTTP proxy and ranges | PASS | Full and single-range route tests verify status, Content-Range, Content-Length, and bytes. |
 | Swarm-first proxy path | PASS | A real loopback HTTP-over-LAN test exercises the LanClient adapter and verified response assembly. |
 | HTTPS fallback | PARTIAL | WebSeed range retrieval, verification, and origin-outage safety are implemented. A successful fallback-to-second-node publication test is still missing. |
@@ -33,7 +33,6 @@ in `TASKS.md` or every M5 exit criterion in `PLAN.md`.
 Required follow-up before declaring MVP complete:
 
 1. Add an integration fixture proving peer-observed cancellation and bounded in-flight behavior.
-2. Add malicious-peer integration fixtures, including oversized-frame behavior.
-3. Add a dedicated bounded fuzz target or equivalent independently runnable fuzz job.
-4. Exercise successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.
-5. Re-run the review from a clean checkout and record owner approval.
+2. Add a dedicated bounded fuzz target or equivalent independently runnable fuzz job.
+3. Exercise successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.
+4. Re-run the review from a clean checkout and record owner approval.
