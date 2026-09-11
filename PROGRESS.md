@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: 8cb99ea Defer transparent proxy rewriting from MVP
+HEAD: ce1a67a Record supported-host fuzz evidence
 
 ## Completed this session
 
