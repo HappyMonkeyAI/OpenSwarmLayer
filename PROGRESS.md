@@ -24,6 +24,7 @@ HEAD: a185742 Record DHT discovery acceptance evidence
 - Added bounded LAN request accounting and wire cancellation signaling for chunk fetches.
 - Added malicious-peer integration fixtures covering wrong hashes and oversized responses.
 - Added an excluded `fuzz` package with a bounded libFuzzer `format_inspect` target, portable fallback smoke runner, and usage documentation.
+- Added a delayed-peer cancellation fixture and fixed peer-associated in-flight cleanup plus bounded cancel-frame flushing.
 
 ## Recent commits
 
@@ -54,7 +55,7 @@ The latest full workspace verification passed:
 - `cargo check --manifest-path fuzz/Cargo.toml --bin format_inspect`
 - `cargo run --manifest-path fuzz/Cargo.toml --bin format_inspect_smoke`
 
-Current unit-test counts are 1 (`ts-core`), 8 (`ts-format`), 13 (`ts-p2p`), 8 (`ts-proxy`), 4 (`ts-store`), and 0 (`ts-cli`), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
+Current unit-test counts are 1 (`ts-core`), 8 (`ts-format`), 14 (`ts-p2p`), 8 (`ts-proxy`), 4 (`ts-store`), and 0 (`ts-cli`), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
 
 ## MVP decision
 
@@ -63,11 +64,10 @@ Do not declare the MVP complete. The owner/adversary review in
 
 Remaining acceptance gaps:
 
-1. Add an integration fixture proving peer-observed cancellation and bounded in-flight behavior; current coverage verifies signaling and local accounting but not a delayed peer.
-2. Execute the libFuzzer target on a host with a working cargo-fuzz/libFuzzer linker; this Windows MSVC host only proves target compilation and the 512-case fallback smoke run.
-3. Prove successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.
-4. Decide whether transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is required; it is currently unsupported and documented as such.
-5. Re-run the review from a clean checkout and record owner approval.
+1. Execute the libFuzzer target on a host with a working cargo-fuzz/libFuzzer linker; this Windows MSVC host only proves target compilation and the 512-case fallback smoke run.
+2. Prove successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.
+3. Decide whether transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is required; it is currently unsupported and documented as such.
+4. Re-run the review from a clean checkout and record owner approval.
 
 ## Recommended first slice tomorrow
 

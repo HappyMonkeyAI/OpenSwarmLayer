@@ -20,6 +20,7 @@ pub type LanSwarm = libp2p::Swarm<LanBehaviour>;
 pub struct LanClient {
     swarm: LanSwarm,
     in_flight: HashSet<libp2p::request_response::OutboundRequestId>,
+    in_flight_peers: HashMap<libp2p::request_response::OutboundRequestId, libp2p::PeerId>,
 }
 
 impl LanClient {
@@ -27,6 +28,7 @@ impl LanClient {
         Self {
             swarm,
             in_flight: HashSet::new(),
+            in_flight_peers: HashMap::new(),
         }
     }
 
@@ -53,11 +55,24 @@ impl LanClient {
             .request_response
             .send_request(peer, request);
         self.in_flight.insert(request_id);
+        self.in_flight_peers.insert(request_id, *peer);
         Ok(request_id)
     }
 
     fn finish_request(&mut self, request_id: libp2p::request_response::OutboundRequestId) {
         self.in_flight.remove(&request_id);
+        self.in_flight_peers.remove(&request_id);
+    }
+
+    fn finish_peer_requests(&mut self, peer: &libp2p::PeerId) {
+        let request_ids = self
+            .in_flight_peers
+            .iter()
+            .filter_map(|(request_id, request_peer)| (request_peer == peer).then_some(*request_id))
+            .collect::<Vec<_>>();
+        for request_id in request_ids {
+            self.finish_request(request_id);
+        }
     }
 
     fn send_cancel(&mut self, peer: &libp2p::PeerId, request_id: u64) {
@@ -109,12 +124,14 @@ impl LanClient {
             };
             let result = tokio::select! {
                 _ = cancel.cancelled() => {
-                    if request_id.is_some() {
-                        self.send_cancel(&peer, request.request_id);
-                    }
-                    if let Some(request_id) = request_id {
-                        self.finish_request(request_id);
-                    }
+                    self.send_cancel(&peer, request.request_id);
+                    let _ = tokio::time::timeout(Duration::from_millis(100), async {
+                        loop {
+                            let _ = self.swarm.select_next_some().await;
+                        }
+                    })
+                    .await;
+                    self.finish_peer_requests(&peer);
                     anyhow::bail!("chunk request cancelled")
                 },
                 result = tokio::time::timeout(Duration::from_secs(5), async {
@@ -181,10 +198,8 @@ impl LanClient {
                     last_failure = error.to_string();
                 }
                 Err(_) => {
-                    if let Some(request_id) = request_id {
-                        self.finish_request(request_id);
-                        self.send_cancel(&peer, request.request_id);
-                    }
+                    self.finish_peer_requests(&peer);
+                    self.send_cancel(&peer, request.request_id);
                     last_failure = String::from("chunk request timed out");
                 }
             }
@@ -1023,6 +1038,101 @@ mod tests {
             .await;
         assert_eq!(result.unwrap_err().to_string(), "chunk request cancelled");
         assert_eq!(client.in_flight(), 0);
+    }
+
+    #[tokio::test]
+    async fn delayed_peer_observes_cancellation_and_releases_in_flight_request() {
+        use futures::StreamExt;
+        use libp2p::request_response::{Event, Message};
+        use libp2p::swarm::SwarmEvent;
+        use std::time::Duration;
+
+        let mut server = build_lan_swarm_with_listeners(&["/ip4/127.0.0.1/tcp/0"]).unwrap();
+        let server_id = *server.local_peer_id();
+        let (address_tx, address_rx) = tokio::sync::oneshot::channel();
+        let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
+        let server_task = tokio::spawn(async move {
+            let mut address_tx = Some(address_tx);
+            let mut cancel_tx = Some(cancel_tx);
+            loop {
+                match server.select_next_some().await {
+                    SwarmEvent::NewListenAddr { address, .. } => {
+                        if let Some(address_tx) = address_tx.take() {
+                            let _ = address_tx.send(address);
+                        }
+                    }
+                    SwarmEvent::Behaviour(LanBehaviourEvent::RequestResponse(Event::Message {
+                        message:
+                            Message::Request {
+                                request, channel, ..
+                            },
+                        ..
+                    })) => match request {
+                        PeerRequest::GetChunks {
+                            tensor_hash,
+                            chunks,
+                        } => {
+                            let request = chunks.into_iter().next().unwrap();
+                            tokio::time::sleep(Duration::from_millis(250)).await;
+                            let _ = server.behaviour_mut().request_response.send_response(
+                                channel,
+                                PeerResponse::Chunk {
+                                    request_id: request.request_id,
+                                    tensor_hash,
+                                    chunk_index: request.chunk_index,
+                                    payload: b"delayed".to_vec(),
+                                    payload_hash: sha256(b"delayed"),
+                                },
+                            );
+                        }
+                        PeerRequest::Cancel { .. } => {
+                            if let Some(cancel_tx) = cancel_tx.take() {
+                                let _ = cancel_tx.send(());
+                            }
+                        }
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            }
+        });
+
+        let address = address_rx
+            .await
+            .unwrap()
+            .with(libp2p::multiaddr::Protocol::P2p(server_id.into()));
+        let mut client = LanClient::new(build_lan_swarm_with_listeners(&[]).unwrap());
+        client.swarm_mut().dial(address).unwrap();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let cancel_for_task = cancel.clone();
+        let fetch = tokio::spawn(async move {
+            let result = client
+                .fetch_chunk_with_cancel(
+                    server_id,
+                    ChunkRequest {
+                        request_id: 99,
+                        tensor_hash: Hash32([6; 32]),
+                        chunk_index: 0,
+                        expected_hash: sha256(b"delayed"),
+                    },
+                    1,
+                    cancel_for_task,
+                )
+                .await
+                .map(|_| ())
+                .map_err(|error| error.to_string());
+            (result, client.in_flight())
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        cancel.cancel();
+        let (result, in_flight) = fetch.await.unwrap();
+        assert!(result.is_err());
+        assert_eq!(in_flight, 0);
+        tokio::time::timeout(Duration::from_secs(2), cancel_rx)
+            .await
+            .expect("delayed peer did not observe cancellation")
+            .expect("cancellation observer dropped");
+        server_task.abort();
     }
 
     #[tokio::test]
