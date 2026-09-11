@@ -7,6 +7,7 @@ Status vocabulary:
 - PASS: implementation and automated evidence match the requirement.
 - PARTIAL: the normal path exists, but an acceptance condition or failure path is not fully proven.
 - BLOCKED: a required condition is absent or contradicts the specification.
+- ACCEPTED WITH LIMITATIONS: the owner approved MVP closure while explicitly retaining documented non-MVP or host/process limitations.
 
 ## Specification review
 
@@ -26,11 +27,11 @@ Status vocabulary:
 
 ## Decision
 
-The MVP remains BLOCKED. The current branch demonstrates the core parser, CAS,
-LAN transfer, and proxy path, but it does not satisfy every P0 acceptance criterion
-in `TASKS.md` or every M5 exit criterion in `PLAN.md`.
+The MVP is ACCEPTED WITH LIMITATIONS. The owner approved the current branch after
+reviewing the clean-checkout, supported-host fuzz, format-fixture, and combined
+HTTPS-to-live-DHT evidence.
 
-Required follow-up before declaring MVP complete:
+Documented post-MVP limitations:
 
 1. No MVP action remains for transparent HTTP_PROXY/HTTPS_PROXY rewriting; it is explicitly deferred as P1/M4-09.
-2. Record explicit owner approval after reviewing the clean-checkout, supported-host fuzz, and fixture evidence.
+2. Independent OS-process LAN acceptance remains partial; the verified DHT acceptance uses two in-process swarms.

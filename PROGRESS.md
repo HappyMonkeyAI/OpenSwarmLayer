@@ -71,13 +71,14 @@ Current unit-test counts are 1 (`ts-core`), 9 (`ts-format`), 14 (`ts-p2p`), 10 (
 
 ## MVP decision
 
-Do not declare the MVP complete. The owner/adversary review in
-`docs/owner-adversary-review.md` marks M5 `BLOCKED`.
+The owner approved MVP closure based on the clean-checkout, supported-host fuzz,
+format-fixture, and HTTPS-to-live-DHT evidence. M5 is accepted with documented
+limitations in `docs/owner-adversary-review.md`.
 
-Remaining acceptance gaps:
+Post-MVP limitations and deferred work:
 
 1. Transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is explicitly deferred; MVP clients use the explicit localhost proxy URL.
-2. Record explicit owner approval after reviewing the clean-checkout, supported-host fuzz, and fixture evidence.
+2. Independent OS-process LAN acceptance remains partial; the verified DHT acceptance uses two in-process swarms.
 
 ## Recommended first slice tomorrow
 
