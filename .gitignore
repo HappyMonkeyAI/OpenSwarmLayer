@@ -1,7 +1,1 @@
-/target/
-*.tswarm
-*.partial
-.env
-.env.*
-!.env.example
-
+fuzz/target/
