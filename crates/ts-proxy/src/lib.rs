@@ -1064,4 +1064,125 @@ mod tests {
         assert_eq!(store.get(expected).unwrap(), b"https-fallback");
         assert_eq!(publish_rx.recv().await, Some(expected));
     }
+
+    #[tokio::test]
+    async fn https_fallback_publishes_provider_for_second_node_discovery() {
+        use axum::routing::get;
+        use axum::Router;
+        use axum_server::tls_rustls::RustlsConfig;
+        use libp2p::futures::StreamExt;
+        use rcgen::generate_simple_self_signed;
+        use std::net::SocketAddr;
+        use ts_p2p::{find_tensor_providers, LanBehaviourEvent};
+
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let payload = b"published-fallback".to_vec();
+        let tensor_hash = sha256(&payload);
+        let app = Router::new().route(
+            "/model.bin",
+            get({
+                let payload = payload.clone();
+                move || {
+                    let payload = payload.clone();
+                    async move { (StatusCode::PARTIAL_CONTENT, payload) }
+                }
+            }),
+        );
+        let cert = generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let cert_der = cert.cert.der().to_vec();
+        let client = Client::builder()
+            .add_root_certificate(reqwest::Certificate::from_der(&cert_der).unwrap())
+            .build()
+            .unwrap();
+        let tls = RustlsConfig::from_der(vec![cert_der], cert.key_pair.serialize_der())
+            .await
+            .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address: SocketAddr = listener.local_addr().unwrap();
+        drop(listener);
+        let https_task =
+            tokio::spawn(axum_server::bind_rustls(address, tls).serve(app.into_make_service()));
+
+        let server = ts_p2p::build_lan_swarm_with_listeners(&["/ip4/127.0.0.1/tcp/0"]).unwrap();
+        let server_id = *server.local_peer_id();
+        let (address_tx, address_rx) = tokio::sync::oneshot::channel();
+        let (publish_tx, mut publish_rx) = tokio::sync::mpsc::channel(1);
+        let server_task = tokio::spawn(async move {
+            let mut server = server;
+            let mut listen_tx = Some(address_tx);
+            ts_p2p::run_lan_node_with_provider_and_events(
+                &mut server,
+                ts_p2p::ChunkProvider::default(),
+                &mut listen_tx,
+                Some(&mut publish_rx),
+            )
+            .await
+        });
+        let server_address = address_rx
+            .await
+            .unwrap()
+            .with(libp2p::multiaddr::Protocol::P2p(server_id.into()));
+        let root = tempfile::tempdir().unwrap();
+        let store = ts_store::ObjectStore::open(root.path()).unwrap();
+        let engine = FetchEngine {
+            store: store.clone(),
+            webseed: WebSeeder::with_client(client),
+            verified_chunk_notify: None,
+        }
+        .with_verified_chunk_sender(publish_tx);
+        let url = format!("https://localhost:{}/model.bin", address.port());
+        assert_eq!(
+            engine
+                .fetch_chunk(&url, 0..payload.len() as u64, tensor_hash, None)
+                .await
+                .unwrap(),
+            payload
+        );
+
+        let mut discovery = ts_p2p::build_lan_swarm_with_listeners(&[]).unwrap();
+        discovery.dial(server_address).unwrap();
+        let query_id = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                match discovery.select_next_some().await {
+                    libp2p::swarm::SwarmEvent::Behaviour(LanBehaviourEvent::Kad(
+                        libp2p::kad::Event::RoutingUpdated { peer, .. },
+                    )) if peer == server_id => {
+                        break find_tensor_providers(&mut discovery, &tensor_hash);
+                    }
+                    _ => {}
+                }
+            }
+        })
+        .await
+        .expect("DHT routing did not become ready");
+        let discovered = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if let libp2p::swarm::SwarmEvent::Behaviour(LanBehaviourEvent::Kad(event)) =
+                    discovery.select_next_some().await
+                {
+                    if let libp2p::kad::Event::OutboundQueryProgressed {
+                        id,
+                        result:
+                            libp2p::kad::QueryResult::GetProviders(Ok(
+                                libp2p::kad::GetProvidersOk::FoundProviders { providers, .. },
+                            )),
+                        ..
+                    } = event
+                    {
+                        if id == query_id {
+                            return providers.contains(&server_id);
+                        }
+                    }
+                }
+            }
+        })
+        .await
+        .expect("published provider lookup timed out");
+        https_task.abort();
+        server_task.abort();
+        assert!(
+            discovered,
+            "second node did not discover published provider"
+        );
+    }
 }

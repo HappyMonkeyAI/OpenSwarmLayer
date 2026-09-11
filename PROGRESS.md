@@ -28,6 +28,7 @@ HEAD: 97401c0 Connect WebSeed notifications to publication channel
 - Added a local HTTPS WebSeed acceptance test covering range retrieval, hash verification, CAS persistence, and provider notification.
 - Added a live LAN-node publication event channel and changed the DHT discovery fixture to publish through that runtime path.
 - Added a channel-backed `FetchEngine` notification adapter so verified WebSeed chunks can feed the live publication channel.
+- Added the combined HTTPS fallback, live publication, and second-node discovery acceptance test.
 
 ## Recent commits
 
@@ -63,7 +64,7 @@ The latest full workspace verification passed:
 - `cargo run --manifest-path fuzz/Cargo.toml --bin format_inspect_smoke`
 - `cargo test -p ts-proxy https_webseed_fallback_verifies_stores_and_notifies`
 
-Current unit-test counts are 1 (`ts-core`), 8 (`ts-format`), 14 (`ts-p2p`), 9 (`ts-proxy`), 4 (`ts-store`), and 0 (`ts-cli`), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
+Current unit-test counts are 1 (`ts-core`), 8 (`ts-format`), 14 (`ts-p2p`), 10 (`ts-proxy`), 4 (`ts-store`), and 0 (`ts-cli`), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
 
 ## MVP decision
 
@@ -73,9 +74,8 @@ Do not declare the MVP complete. The owner/adversary review in
 Remaining acceptance gaps:
 
 1. Execute the libFuzzer target on a host with a working cargo-fuzz/libFuzzer linker; this Windows MSVC host only proves target compilation and the 512-case fallback smoke run.
-2. Prove the complete HTTPS fallback-to-second-node discovery path with the channel-backed engine and live publisher together.
-3. Decide whether transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is required; it is currently unsupported and documented as such.
-4. Re-run the review from a clean checkout and record owner approval.
+2. Decide whether transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is required; it is currently unsupported and documented as such.
+3. Re-run the review from a clean checkout and record owner approval.
 
 ## Recommended first slice tomorrow
 
