@@ -38,6 +38,7 @@ HEAD: f79f23b Update peer scores from transfer outcomes
 - Added `LanClient` transfer metric snapshots and asserted attempts, success, failures, cancellations, and bytes on the real two-node transfer.
 - Added `ts-cli prepare` and verified complete-file materialization in the real CLI acceptance fixture.
 - Added mutable peer-score tracking; successful and failed `LanClient` outcomes now update the score registry, with real-transfer success coverage.
+- Reconciled the task ledger: M1, M2, and M3 are complete; prior cancellation/backpressure gap text was stale relative to the passing fixtures.
 
 ## Recent commits
 
