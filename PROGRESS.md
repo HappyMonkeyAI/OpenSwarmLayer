@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: 97401c0 Connect WebSeed notifications to publication channel
+HEAD: 833c887 Verify HTTPS fallback publication path
 
 ## Completed this session
 
