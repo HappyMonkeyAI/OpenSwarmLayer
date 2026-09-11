@@ -442,10 +442,36 @@ pub async fn run_lan_node_with_provider_and_notify(
     provider: ChunkProvider,
     mut listen_tx: Option<tokio::sync::oneshot::Sender<libp2p::Multiaddr>>,
 ) -> anyhow::Result<()> {
+    run_lan_node_with_provider_and_events(&mut swarm, provider, &mut listen_tx, None).await
+}
+
+pub async fn run_lan_node_with_provider_and_events(
+    swarm: &mut LanSwarm,
+    provider: ChunkProvider,
+    listen_tx: &mut Option<tokio::sync::oneshot::Sender<libp2p::Multiaddr>>,
+    mut publish_rx: Option<&mut tokio::sync::mpsc::Receiver<Hash32>>,
+) -> anyhow::Result<()> {
     use futures::StreamExt;
     let provider = provider;
     loop {
-        match swarm.select_next_some().await {
+        let event = match publish_rx.as_mut() {
+            Some(receiver) => {
+                tokio::select! {
+                    event = swarm.select_next_some() => Some(event),
+                    hash = receiver.recv() => {
+                        if let Some(hash) = hash {
+                            publish_tensor(swarm, &hash)?;
+                        }
+                        None
+                    }
+                }
+            }
+            None => Some(swarm.select_next_some().await),
+        };
+        let Some(event) = event else {
+            continue;
+        };
+        match event {
             libp2p::swarm::SwarmEvent::NewListenAddr { address, .. } => {
                 println!("listen: {address}");
                 if let Some(sender) = listen_tx.take() {
@@ -1200,13 +1226,18 @@ mod tests {
 
         let mut server = build_lan_swarm_with_listeners(&["/ip4/127.0.0.1/tcp/0"]).unwrap();
         let server_id = *server.local_peer_id();
-        publish_tensor(&mut server, &tensor).unwrap();
         let (address_tx, address_rx) = tokio::sync::oneshot::channel();
-        let server_task = tokio::spawn(run_lan_node_with_provider_and_notify(
-            server,
-            provider,
-            Some(address_tx),
-        ));
+        let (publish_tx, mut publish_rx) = tokio::sync::mpsc::channel(1);
+        let server_task = tokio::spawn(async move {
+            let mut listen_tx = Some(address_tx);
+            run_lan_node_with_provider_and_events(
+                &mut server,
+                provider,
+                &mut listen_tx,
+                Some(&mut publish_rx),
+            )
+            .await
+        });
 
         let address = address_rx
             .await
@@ -1214,6 +1245,7 @@ mod tests {
             .with(libp2p::multiaddr::Protocol::P2p(server_id.into()));
         let mut client = build_lan_swarm_with_listeners(&[]).unwrap();
         client.dial(address).unwrap();
+        publish_tx.send(tensor).await.unwrap();
 
         let query_id = loop {
             match client.select_next_some().await {

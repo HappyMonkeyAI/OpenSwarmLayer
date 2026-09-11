@@ -26,6 +26,7 @@ HEAD: 70d22e3 Format HTTPS acceptance test
 - Added an excluded `fuzz` package with a bounded libFuzzer `format_inspect` target, portable fallback smoke runner, and usage documentation.
 - Added a delayed-peer cancellation fixture and fixed peer-associated in-flight cleanup plus bounded cancel-frame flushing.
 - Added a local HTTPS WebSeed acceptance test covering range retrieval, hash verification, CAS persistence, and provider notification.
+- Added a live LAN-node publication event channel and changed the DHT discovery fixture to publish through that runtime path.
 
 ## Recent commits
 
@@ -71,7 +72,7 @@ Do not declare the MVP complete. The owner/adversary review in
 Remaining acceptance gaps:
 
 1. Execute the libFuzzer target on a host with a working cargo-fuzz/libFuzzer linker; this Windows MSVC host only proves target compilation and the 512-case fallback smoke run.
-2. Prove successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.
+2. Wire HTTPS fallback notifications into the live publication event channel and prove the complete second-node discovery path.
 3. Decide whether transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is required; it is currently unsupported and documented as such.
 4. Re-run the review from a clean checkout and record owner approval.
 
