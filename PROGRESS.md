@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: ce1a67a Record supported-host fuzz evidence
+HEAD: cd4fc9a Add format fixtures and stabilize HTTPS tests
 
 ## Completed this session
 
