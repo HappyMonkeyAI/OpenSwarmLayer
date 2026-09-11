@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: 8471b27 Persist per-tensor verified bitmaps
+HEAD: 78a501e Add LAN transfer metrics
 
 ## Completed this session
 
