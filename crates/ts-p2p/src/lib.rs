@@ -142,6 +142,7 @@ impl LanClient {
                                 ..
                             } if tensor_hash == request.tensor_hash
                                 && chunk_index == request.chunk_index
+                                && payload.len() <= MAX_CHUNK_BYTES
                                 && payload_hash == request.expected_hash
                                 && sha256(&payload) == request.expected_hash =>
                             {
@@ -746,6 +747,78 @@ impl Availability {
 mod tests {
     use super::*;
 
+    async fn fetch_from_malicious_peer(
+        payload: Vec<u8>,
+        advertised_hash: Hash32,
+    ) -> anyhow::Result<Vec<u8>> {
+        use futures::StreamExt;
+        use libp2p::request_response::{Event, Message};
+        use libp2p::swarm::SwarmEvent;
+
+        let mut server = build_lan_swarm_with_listeners(&["/ip4/127.0.0.1/tcp/0"])?;
+        let server_id = *server.local_peer_id();
+        let (address_tx, address_rx) = tokio::sync::oneshot::channel();
+        let server_task = tokio::spawn(async move {
+            let mut address_tx = Some(address_tx);
+            loop {
+                match server.select_next_some().await {
+                    SwarmEvent::NewListenAddr { address, .. } => {
+                        if let Some(address_tx) = address_tx.take() {
+                            let _ = address_tx.send(address);
+                        }
+                    }
+                    SwarmEvent::Behaviour(LanBehaviourEvent::RequestResponse(Event::Message {
+                        message:
+                            Message::Request {
+                                request, channel, ..
+                            },
+                        ..
+                    })) => {
+                        if let PeerRequest::GetChunks {
+                            tensor_hash,
+                            chunks,
+                        } = request
+                        {
+                            let request = chunks.into_iter().next().unwrap();
+                            let response = PeerResponse::Chunk {
+                                request_id: request.request_id,
+                                tensor_hash,
+                                chunk_index: request.chunk_index,
+                                payload: payload.clone(),
+                                payload_hash: advertised_hash,
+                            };
+                            let _ = server
+                                .behaviour_mut()
+                                .request_response
+                                .send_response(channel, response);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let address = address_rx
+            .await?
+            .with(libp2p::multiaddr::Protocol::P2p(server_id.into()));
+        let mut client = LanClient::new(build_lan_swarm_with_listeners(&[])?);
+        client.swarm_mut().dial(address)?;
+        let result = client
+            .fetch_chunk(
+                server_id,
+                ChunkRequest {
+                    request_id: 1,
+                    tensor_hash: Hash32([4; 32]),
+                    chunk_index: 0,
+                    expected_hash: advertised_hash,
+                },
+                1,
+            )
+            .await;
+        server_task.abort();
+        result
+    }
+
     #[test]
     fn dht_keys_are_domain_separated() {
         let hash = Hash32([1; 32]);
@@ -1070,5 +1143,28 @@ mod tests {
 
         server_task.abort();
         assert!(discovered, "DHT lookup did not return the seeded provider");
+    }
+
+    #[tokio::test]
+    async fn wrong_hash_peer_response_is_rejected() {
+        let advertised_hash = sha256(b"expected");
+        let result = fetch_from_malicious_peer(b"corrupt".to_vec(), advertised_hash).await;
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("peer returned an invalid chunk response"));
+    }
+
+    #[tokio::test]
+    async fn oversized_peer_response_is_rejected() {
+        let payload = vec![0_u8; MAX_CHUNK_BYTES + 1];
+        let advertised_hash = sha256(&payload);
+        let result = fetch_from_malicious_peer(payload, advertised_hash).await;
+        let error = result.unwrap_err().to_string();
+        assert!(
+            error.contains("peer returned an invalid chunk response")
+                || error.contains("outbound stream"),
+            "unexpected oversized response error: {error}"
+        );
     }
 }
