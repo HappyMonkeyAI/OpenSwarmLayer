@@ -29,6 +29,7 @@ HEAD: 833c887 Verify HTTPS fallback publication path
 - Added a live LAN-node publication event channel and changed the DHT discovery fixture to publish through that runtime path.
 - Added a channel-backed `FetchEngine` notification adapter so verified WebSeed chunks can feed the live publication channel.
 - Added the combined HTTPS fallback, live publication, and second-node discovery acceptance test.
+- Re-ran the workspace and bounded fuzz-smoke verification from a clean detached checkout; all checks passed.
 
 ## Recent commits
 
@@ -75,7 +76,7 @@ Remaining acceptance gaps:
 
 1. Execute the libFuzzer target on a host with a working cargo-fuzz/libFuzzer linker; this Windows MSVC host only proves target compilation and the 512-case fallback smoke run.
 2. Decide whether transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is required; it is currently unsupported and documented as such.
-3. Re-run the review from a clean checkout and record owner approval.
+3. Record explicit owner approval after reviewing the clean-checkout evidence.
 
 ## Recommended first slice tomorrow
 

@@ -1,6 +1,6 @@
 # Owner/adversary MVP review
 
-Review basis: `SPEC.md`, `PLAN.md`, `TASKS.md`, and the workspace test results on the current branch.
+Review basis: `SPEC.md`, `PLAN.md`, `TASKS.md`, workspace test results on the current branch, and a clean detached-checkout verification run at `50b325c`.
 
 Status vocabulary:
 
@@ -34,4 +34,4 @@ Required follow-up before declaring MVP complete:
 
 1. Execute the bounded libFuzzer target on a supported linker/host; Windows MSVC currently has compile-only plus fallback-smoke evidence.
 2. Decide whether transparent HTTP_PROXY/HTTPS_PROXY rewriting is required.
-3. Re-run the review from a clean checkout and record owner approval.
+3. Record explicit owner approval after reviewing the clean-checkout evidence.
