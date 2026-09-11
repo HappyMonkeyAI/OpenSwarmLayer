@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: a185742 Record DHT discovery acceptance evidence
+HEAD: e7c012c Verify delayed peer cancellation
 
 ## Completed this session
 
@@ -28,6 +28,10 @@ HEAD: a185742 Record DHT discovery acceptance evidence
 
 ## Recent commits
 
+- `e7c012c` — Verify delayed peer cancellation
+- `a7e5a79` — Ignore workspace build artifacts
+- `7efb0cb` — Ignore fuzz build artifacts
+- `370bc55` — Add bounded parser fuzz target
 - `6a7ed74` — Record MVP owner adversary review
 - `c39904c` — Add malicious peer rejection fixtures
 - `2e0ca4d` — Bound LAN requests and signal cancellation
