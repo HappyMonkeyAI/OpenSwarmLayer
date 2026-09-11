@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: 8a62ea4 Wire live DHT publication events
+HEAD: 97401c0 Connect WebSeed notifications to publication channel
 
 ## Completed this session
 
