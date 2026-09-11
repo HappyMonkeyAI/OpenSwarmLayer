@@ -37,6 +37,7 @@ HEAD: e9db9ce Add verified prepare command
 - Added JSON-safe per-tensor verified-chunk bitmaps with restart persistence and same-index isolation coverage.
 - Added `LanClient` transfer metric snapshots and asserted attempts, success, failures, cancellations, and bytes on the real two-node transfer.
 - Added `ts-cli prepare` and verified complete-file materialization in the real CLI acceptance fixture.
+- Added mutable peer-score tracking; successful and failed `LanClient` outcomes now update the score registry, with real-transfer success coverage.
 
 ## Recent commits
 

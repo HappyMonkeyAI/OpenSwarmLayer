@@ -54,6 +54,7 @@ pub struct LanClient {
     in_flight: HashSet<libp2p::request_response::OutboundRequestId>,
     in_flight_peers: HashMap<libp2p::request_response::OutboundRequestId, libp2p::PeerId>,
     metrics: Arc<TransferMetrics>,
+    peer_scores: Arc<tokio::sync::Mutex<PeerScores>>,
 }
 
 impl LanClient {
@@ -63,6 +64,7 @@ impl LanClient {
             in_flight: HashSet::new(),
             in_flight_peers: HashMap::new(),
             metrics: Arc::new(TransferMetrics::default()),
+            peer_scores: Arc::new(tokio::sync::Mutex::new(PeerScores::default())),
         }
     }
 
@@ -81,6 +83,15 @@ impl LanClient {
 
     pub fn metrics(&self) -> TransferMetricsSnapshot {
         self.metrics.snapshot()
+    }
+
+    pub fn with_peer_scores(mut self, peer_scores: Arc<tokio::sync::Mutex<PeerScores>>) -> Self {
+        self.peer_scores = peer_scores;
+        self
+    }
+
+    pub async fn peer_score(&self, peer: &libp2p::PeerId) -> PeerScore {
+        self.peer_scores.lock().await.get(peer)
     }
 
     fn send_request(
@@ -213,6 +224,7 @@ impl LanClient {
                                 self.metrics
                                     .bytes_transferred
                                     .fetch_add(payload.len() as u64, AtomicOrdering::Relaxed);
+                                self.peer_scores.lock().await.record_success(peer);
                                 let _ = publish_tensor(&mut self.swarm, &request.tensor_hash);
                                 return Ok(payload)
                             }
@@ -244,6 +256,7 @@ impl LanClient {
                     self.metrics
                         .failed_requests
                         .fetch_add(1, AtomicOrdering::Relaxed);
+                    self.peer_scores.lock().await.record_failure(peer);
                     if let Some(request_id) = request_id {
                         self.finish_request(request_id);
                     }
@@ -253,6 +266,7 @@ impl LanClient {
                     self.metrics
                         .failed_requests
                         .fetch_add(1, AtomicOrdering::Relaxed);
+                    self.peer_scores.lock().await.record_failure(peer);
                     self.finish_peer_requests(&peer);
                     self.send_cancel(&peer, request.request_id);
                     last_failure = String::from("chunk request timed out");
@@ -796,6 +810,27 @@ pub struct PeerScore {
     pub latency_ms: u32,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct PeerScores {
+    scores: HashMap<libp2p::PeerId, PeerScore>,
+}
+
+impl PeerScores {
+    pub fn record_success(&mut self, peer: libp2p::PeerId) {
+        let score = self.scores.entry(peer).or_default();
+        score.successes = score.successes.saturating_add(1);
+    }
+
+    pub fn record_failure(&mut self, peer: libp2p::PeerId) {
+        let score = self.scores.entry(peer).or_default();
+        score.failures = score.failures.saturating_add(1);
+    }
+
+    pub fn get(&self, peer: &libp2p::PeerId) -> PeerScore {
+        self.scores.get(peer).copied().unwrap_or_default()
+    }
+}
+
 impl PeerScore {
     pub fn value(self) -> i64 {
         let lan_bonus = if self.same_lan { 1_000 } else { 0 };
@@ -1240,8 +1275,10 @@ mod tests {
             .with(libp2p::multiaddr::Protocol::P2p(server_id.into()));
 
         let metrics = Arc::new(TransferMetrics::default());
-        let mut client =
-            LanClient::new(build_lan_swarm_with_listeners(&[]).unwrap()).with_metrics(metrics);
+        let peer_scores = Arc::new(tokio::sync::Mutex::new(PeerScores::default()));
+        let mut client = LanClient::new(build_lan_swarm_with_listeners(&[]).unwrap())
+            .with_metrics(metrics)
+            .with_peer_scores(peer_scores);
         client.swarm_mut().dial(address).unwrap();
         let availability = client
             .query_have(server_id, vec![expected, Hash32([9; 32])])
@@ -1277,6 +1314,8 @@ mod tests {
                 bytes_transferred: 10,
             }
         );
+        assert_eq!(client.peer_score(&server_id).await.successes, 1);
+        assert_eq!(client.peer_score(&server_id).await.failures, 0);
     }
 
     #[tokio::test]
