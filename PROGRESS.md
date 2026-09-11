@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: e7c012c Verify delayed peer cancellation
+HEAD: 52ab400 Add HTTPS WebSeed acceptance fixture
 
 ## Completed this session
 
@@ -61,7 +61,7 @@ The latest full workspace verification passed:
 - `cargo run --manifest-path fuzz/Cargo.toml --bin format_inspect_smoke`
 - `cargo test -p ts-proxy https_webseed_fallback_verifies_stores_and_notifies`
 
-Current unit-test counts are 1 (`ts-core`), 8 (`ts-format`), 14 (`ts-p2p`), 8 (`ts-proxy`), 4 (`ts-store`), and 0 (`ts-cli`), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
+Current unit-test counts are 1 (`ts-core`), 8 (`ts-format`), 14 (`ts-p2p`), 9 (`ts-proxy`), 4 (`ts-store`), and 0 (`ts-cli`), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
 
 ## MVP decision
 

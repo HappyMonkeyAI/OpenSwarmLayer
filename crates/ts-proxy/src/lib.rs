@@ -1032,19 +1032,14 @@ mod tests {
             .add_root_certificate(reqwest::Certificate::from_der(&cert_der).unwrap())
             .build()
             .unwrap();
-        let tls = RustlsConfig::from_der(
-            vec![cert_der],
-            cert.key_pair.serialize_der(),
-        )
-        .await
-        .unwrap();
+        let tls = RustlsConfig::from_der(vec![cert_der], cert.key_pair.serialize_der())
+            .await
+            .unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address: SocketAddr = listener.local_addr().unwrap();
         drop(listener);
-        let server = tokio::spawn(
-            axum_server::bind_rustls(address, tls)
-                .serve(app.into_make_service()),
-        );
+        let server =
+            tokio::spawn(axum_server::bind_rustls(address, tls).serve(app.into_make_service()));
         let root = tempfile::tempdir().unwrap();
         let store = ts_store::ObjectStore::open(root.path()).unwrap();
         let notifications = Arc::new(AtomicUsize::new(0));
