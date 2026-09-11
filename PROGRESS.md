@@ -36,6 +36,7 @@ HEAD: 78a501e Add LAN transfer metrics
 - Added selective unreferenced-object repair to the content-addressed store; the live object is preserved and the dead object is removed by regression test.
 - Added JSON-safe per-tensor verified-chunk bitmaps with restart persistence and same-index isolation coverage.
 - Added `LanClient` transfer metric snapshots and asserted attempts, success, failures, cancellations, and bytes on the real two-node transfer.
+- Added `ts-cli prepare` and verified complete-file materialization in the real CLI acceptance fixture.
 
 ## Recent commits
 

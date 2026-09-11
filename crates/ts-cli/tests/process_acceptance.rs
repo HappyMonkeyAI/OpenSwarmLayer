@@ -101,4 +101,21 @@ fn two_cli_processes_transfer_and_verify_a_chunk() {
         String::from_utf8_lossy(&fetched.stderr)
     );
     assert_eq!(std::fs::read(output_path).unwrap(), payload);
+
+    let prepared_path = directory.path().join("prepared.safetensors");
+    let prepared = Command::new(executable)
+        .args([
+            "prepare",
+            manifest_path.to_str().unwrap(),
+            store_root.to_str().unwrap(),
+            prepared_path.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        prepared.status.success(),
+        "prepare process failed: {}",
+        String::from_utf8_lossy(&prepared.stderr)
+    );
+    assert_eq!(std::fs::read(prepared_path).unwrap(), payload);
 }

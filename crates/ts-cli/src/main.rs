@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 fn usage() {
-    eprintln!("usage:\n  ts-cli node [manifest.tswarm] [store-root]\n  ts-cli fetch-chunk <peer-id> <peer-address> <tensor-hash-hex> <chunk-index> <chunk-hash-hex> <output>\n  ts-cli proxy [bind] <root>\n  ts-cli proxy-manifest [bind] <manifest.tswarm> <store-root> <origin-url> [peer-id] [peer-address]\n  ts-cli inspect <model>\n  ts-cli manifest <model> <output.tswarm>\n  ts-cli verify <model> <manifest.tswarm>\n  ts-cli diff <old.tswarm> <new.tswarm>");
+    eprintln!("usage:\n  ts-cli node [manifest.tswarm] [store-root]\n  ts-cli fetch-chunk <peer-id> <peer-address> <tensor-hash-hex> <chunk-index> <chunk-hash-hex> <output>\n  ts-cli prepare <manifest.tswarm> <store-root> <output>\n  ts-cli proxy [bind] <root>\n  ts-cli proxy-manifest [bind] <manifest.tswarm> <store-root> <origin-url> [peer-id] [peer-address]\n  ts-cli inspect <model>\n  ts-cli manifest <model> <output.tswarm>\n  ts-cli verify <model> <manifest.tswarm>\n  ts-cli diff <old.tswarm> <new.tswarm>");
 }
 
 fn parse_hash(value: &std::ffi::OsStr) -> Result<ts_core::Hash32> {
@@ -96,6 +96,17 @@ async fn main() -> Result<()> {
                 )
                 .await?;
             fs::write(output, bytes)?;
+        }
+        Some("prepare") => {
+            let manifest_path = PathBuf::from(args.next().context("missing manifest path")?);
+            let store_root = PathBuf::from(args.next().context("missing store root")?);
+            let output = PathBuf::from(args.next().context("missing output path")?);
+            anyhow::ensure!(args.next().is_none(), "too many prepare arguments");
+            let manifest: ts_core::Manifest = serde_cbor::from_slice(&fs::read(&manifest_path)?)?;
+            anyhow::ensure!(manifest.verify_root(), "manifest self-check failed");
+            let store = ts_store::ObjectStore::open(store_root)?;
+            store.materialize(&manifest, &output)?;
+            println!("prepared: {}", output.display());
         }
         Some("proxy") => {
             let bind = args
