@@ -19,15 +19,53 @@ pub type LanSwarm = libp2p::Swarm<LanBehaviour>;
 
 pub struct LanClient {
     swarm: LanSwarm,
+    in_flight: HashSet<libp2p::request_response::OutboundRequestId>,
 }
 
 impl LanClient {
     pub fn new(swarm: LanSwarm) -> Self {
-        Self { swarm }
+        Self {
+            swarm,
+            in_flight: HashSet::new(),
+        }
     }
 
     pub fn swarm_mut(&mut self) -> &mut LanSwarm {
         &mut self.swarm
+    }
+
+    pub fn in_flight(&self) -> usize {
+        self.in_flight.len()
+    }
+
+    fn send_request(
+        &mut self,
+        peer: &libp2p::PeerId,
+        request: PeerRequest,
+    ) -> anyhow::Result<libp2p::request_response::OutboundRequestId> {
+        anyhow::ensure!(
+            self.in_flight.len() < MAX_IN_FLIGHT_REQUESTS,
+            "in-flight request limit reached"
+        );
+        let request_id = self
+            .swarm
+            .behaviour_mut()
+            .request_response
+            .send_request(peer, request);
+        self.in_flight.insert(request_id);
+        Ok(request_id)
+    }
+
+    fn finish_request(&mut self, request_id: libp2p::request_response::OutboundRequestId) {
+        self.in_flight.remove(&request_id);
+    }
+
+    fn send_cancel(&mut self, peer: &libp2p::PeerId, request_id: u64) {
+        let _ = self
+            .swarm
+            .behaviour_mut()
+            .request_response
+            .send_request(peer, PeerRequest::Cancel { request_id });
     }
 
     pub async fn fetch_chunk(
@@ -65,28 +103,26 @@ impl LanClient {
         };
         for _attempt in 0..max_attempts {
             let request_id = if self.swarm.is_connected(&peer) {
-                Some(
-                    self.swarm
-                        .behaviour_mut()
-                        .request_response
-                        .send_request(&peer, peer_request.clone()),
-                )
+                Some(self.send_request(&peer, peer_request.clone())?)
             } else {
                 None
             };
             let result = tokio::select! {
-                _ = cancel.cancelled() => anyhow::bail!("chunk request cancelled"),
+                _ = cancel.cancelled() => {
+                    if request_id.is_some() {
+                        self.send_cancel(&peer, request.request_id);
+                    }
+                    if let Some(request_id) = request_id {
+                        self.finish_request(request_id);
+                    }
+                    anyhow::bail!("chunk request cancelled")
+                },
                 result = tokio::time::timeout(Duration::from_secs(5), async {
                 let mut outbound = request_id;
                 loop {
                     match self.swarm.select_next_some().await {
                         SwarmEvent::ConnectionEstablished { peer_id, .. } if peer_id == peer => {
-                            outbound = Some(
-                                self.swarm
-                                    .behaviour_mut()
-                                    .request_response
-                                    .send_request(&peer, peer_request.clone()),
-                            );
+                            outbound = Some(self.send_request(&peer, peer_request.clone())?);
                         }
                         SwarmEvent::Behaviour(LanBehaviourEvent::RequestResponse(
                             Event::Message {
@@ -109,13 +145,16 @@ impl LanClient {
                                 && payload_hash == request.expected_hash
                                 && sha256(&payload) == request.expected_hash =>
                             {
+                                self.finish_request(request_id);
                                 let _ = publish_tensor(&mut self.swarm, &request.tensor_hash);
                                 return Ok(payload)
                             }
                             PeerResponse::Error { code, .. } => {
-                                anyhow::bail!("peer rejected chunk: {code:?}")
+                                self.finish_request(request_id);
+                                anyhow::bail!("peer rejected chunk: {code:?}");
                             }
                             _ => {
+                                self.finish_request(request_id);
                                 let _ = self.swarm.disconnect_peer_id(peer);
                                 anyhow::bail!("peer returned an invalid chunk response")
                             }
@@ -134,8 +173,19 @@ impl LanClient {
             };
             match result {
                 Ok(Ok(bytes)) => return Ok(bytes),
-                Ok(Err(error)) => last_failure = error.to_string(),
-                Err(_) => last_failure = String::from("chunk request timed out"),
+                Ok(Err(error)) => {
+                    if let Some(request_id) = request_id {
+                        self.finish_request(request_id);
+                    }
+                    last_failure = error.to_string();
+                }
+                Err(_) => {
+                    if let Some(request_id) = request_id {
+                        self.finish_request(request_id);
+                        self.send_cancel(&peer, request.request_id);
+                    }
+                    last_failure = String::from("chunk request timed out");
+                }
             }
         }
         anyhow::bail!("chunk request exhausted retries: {last_failure}")
@@ -160,12 +210,7 @@ impl LanClient {
             hashes: hashes.clone(),
         };
         let outbound = if self.swarm.is_connected(&peer) {
-            Some(
-                self.swarm
-                    .behaviour_mut()
-                    .request_response
-                    .send_request(&peer, request.clone()),
-            )
+            Some(self.send_request(&peer, request.clone())?)
         } else {
             None
         };
@@ -174,12 +219,7 @@ impl LanClient {
             loop {
                 match self.swarm.select_next_some().await {
                     SwarmEvent::ConnectionEstablished { peer_id, .. } if peer_id == peer => {
-                        outbound = Some(
-                            self.swarm
-                                .behaviour_mut()
-                                .request_response
-                                .send_request(&peer, request.clone()),
-                        );
+                        outbound = Some(self.send_request(&peer, request.clone())?);
                     }
                     SwarmEvent::Behaviour(LanBehaviourEvent::RequestResponse(Event::Message {
                         message:
@@ -189,6 +229,7 @@ impl LanClient {
                             },
                         ..
                     })) if Some(request_id) == outbound => {
+                        self.finish_request(request_id);
                         let mut availability = Availability::default();
                         for hash in hashes {
                             availability.insert(hash);
@@ -455,6 +496,7 @@ pub const CHUNK_PROTOCOL: &str = "/ts-p2p/chunk/1";
 pub const MAX_CHUNKS_PER_REQUEST: usize = 64;
 pub const MAX_CHUNK_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_HAVE_HASHES: usize = 256;
+pub const MAX_IN_FLIGHT_REQUESTS: usize = 32;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ChunkRequest {
@@ -907,6 +949,7 @@ mod tests {
             )
             .await;
         assert_eq!(result.unwrap_err().to_string(), "chunk request cancelled");
+        assert_eq!(client.in_flight(), 0);
     }
 
     #[tokio::test]
