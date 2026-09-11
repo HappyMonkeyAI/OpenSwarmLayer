@@ -152,3 +152,28 @@ After M5, split work into independent tracks:
 3. Layer-aware prefetch and runtime preparation APIs.
 4. Multi-file repository manifests and sharded model support.
 5. Dynamic quantization research as an optional compute marketplace.
+6. Tauri desktop application backed by a long-running local Rust daemon.
+
+### Desktop application direction
+
+The preferred desktop shell is Tauri rather than Electron because the project
+already has a Rust networking, storage, format, and proxy core. The desktop
+application must remain a client of that core and must not duplicate P2P or
+content-addressed storage logic.
+
+The desktop track should be delivered in this order:
+
+1. Extract a long-running `ts-daemon` runtime around `ts-store`, `ts-p2p`, and
+   `ts-proxy`.
+2. Expose a local-only control API for model inventory, transfer control,
+   peer/metric status, verification, cache repair, and complete-file prepare.
+3. Add local authentication and explicit origin/permission boundaries before
+   exposing control operations to a UI.
+4. Build a minimal Tauri shell with a model library, transfer progress, peer
+   status, cache controls, and runtime/proxy settings.
+5. Add packaging, updater, tray/background operation, notifications, and
+   clean-install acceptance for Windows and Linux.
+
+The CLI, future web dashboard, and Tauri UI should consume the same daemon
+control surface. The daemon must remain usable without the desktop shell for
+headless and server deployments.

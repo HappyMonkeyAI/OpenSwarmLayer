@@ -36,3 +36,22 @@ Objects are stored by content hash. Materialized files and resumable state are d
 ## Networking
 
 The MVP is LAN-first: authenticated libp2p connections, mDNS discovery, and a small request/response protocol. NAT traversal, public relays, and WebRTC are later layers.
+
+## Desktop direction
+
+The planned cross-platform desktop application uses Tauri and a long-running
+local Rust daemon. Tauri is a client shell, not a second networking runtime:
+
+```text
+Tauri UI
+  -> local authenticated control API
+      -> ts-daemon
+          -> ts-store
+          -> ts-p2p
+          -> ts-proxy
+```
+
+The daemon must also support headless CLI/server operation. The control API
+will expose inventory, transfer control, peer and metric status, verification,
+cache repair, preparation, and proxy/runtime settings. Local authentication
+and origin boundaries are required before UI control operations are enabled.

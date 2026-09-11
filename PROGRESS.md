@@ -39,6 +39,7 @@ HEAD: 4a64819 Reconcile completed milestone ledger
 - Added `ts-cli prepare` and verified complete-file materialization in the real CLI acceptance fixture.
 - Added mutable peer-score tracking; successful and failed `LanClient` outcomes now update the score registry, with real-transfer success coverage.
 - Reconciled the task ledger: M1, M2, and M3 are complete; prior cancellation/backpressure gap text was stale relative to the passing fixtures.
+- Recorded the post-MVP desktop direction: Tauri UI over a local authenticated Rust daemon/control API, with headless CLI/server operation preserved.
 
 ## Recent commits
 

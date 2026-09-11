@@ -116,3 +116,9 @@ A task is complete only when:
 - `P1` transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting; intentionally deferred because MVP clients configure the explicit localhost proxy URL.
 - `P2` browser/WebRTC nodes.
 - `P2` telemetry-resistant and privacy-preserving DHT operation.
+- `P1` Tauri desktop application backed by a long-running local Rust daemon:
+  shared control API, model library, transfer controls, peer/metric status,
+  cache verification/repair, runtime proxy settings, packaging, tray operation,
+  and Windows/Linux clean-install acceptance. Tauri is preferred over Electron
+  because the core is already Rust-based; the UI must not duplicate P2P or
+  content-addressed storage logic.
