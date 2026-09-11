@@ -1046,6 +1046,16 @@ mod tests {
         drop(listener);
         let server =
             tokio::spawn(axum_server::bind_rustls(address, tls).serve(app.into_make_service()));
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                if tokio::net::TcpStream::connect(address).await.is_ok() {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("HTTPS test server did not start");
         let root = tempfile::tempdir().unwrap();
         let store = ts_store::ObjectStore::open(root.path()).unwrap();
         let (publish_tx, mut publish_rx) = tokio::sync::mpsc::channel(1);
@@ -1102,6 +1112,16 @@ mod tests {
         drop(listener);
         let https_task =
             tokio::spawn(axum_server::bind_rustls(address, tls).serve(app.into_make_service()));
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                if tokio::net::TcpStream::connect(address).await.is_ok() {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("HTTPS test server did not start");
 
         let server = ts_p2p::build_lan_swarm_with_listeners(&["/ip4/127.0.0.1/tcp/0"]).unwrap();
         let server_id = *server.local_peer_id();

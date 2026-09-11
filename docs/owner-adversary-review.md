@@ -12,7 +12,7 @@ Status vocabulary:
 
 | Area | Status | Evidence and remaining risk |
 |---|---|---|
-| Local GGUF/Safetensors inspection | PARTIAL | Header-only parsers, bounds checks, malformed corpus, generated chunk properties, and a bounded libFuzzer target are present. Ubuntu WSL2 executed 1,000 bounded runs with 219 coverage features and no crash; representative format-fixture validation remains. |
+| Local GGUF/Safetensors inspection | PASS | Header-only parsers, bounds checks, representative `.gguf`/`.safetensors` fixture routing and metadata tests, generated chunk properties, and a bounded libFuzzer target are present. Ubuntu WSL2 executed 1,000 bounded runs with 219 coverage features and no crash. |
 | Deterministic identity and manifests | PASS | Manifest root and serialization tests pass; parser and manifest commands are implemented. |
 | Verified storage and materialization | PASS | Hash-verified CAS writes and byte reconstruction tests pass. Repair and bitmap integration are not fully demonstrated. |
 | LAN authenticated transfer | PARTIAL | Loopback nodes transfer verified chunks and use QUIC/TCP, Noise, and Yamux. The bounded acceptance coverage is still in-process rather than two independently spawned OS processes. |
@@ -32,6 +32,5 @@ in `TASKS.md` or every M5 exit criterion in `PLAN.md`.
 
 Required follow-up before declaring MVP complete:
 
-1. Add/validate representative GGUF and Safetensors format fixtures.
-2. No MVP action remains for transparent HTTP_PROXY/HTTPS_PROXY rewriting; it is explicitly deferred as P1/M4-09.
-3. Record explicit owner approval after reviewing the clean-checkout evidence.
+1. No MVP action remains for transparent HTTP_PROXY/HTTPS_PROXY rewriting; it is explicitly deferred as P1/M4-09.
+2. Record explicit owner approval after reviewing the clean-checkout, supported-host fuzz, and fixture evidence.

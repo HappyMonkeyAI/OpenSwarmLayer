@@ -450,7 +450,7 @@ mod tests {
     use byteorder::{LittleEndian, WriteBytesExt};
     use proptest::prelude::*;
     use std::io::Write;
-    use tempfile::NamedTempFile;
+    use tempfile::{tempdir, NamedTempFile};
 
     #[test]
     fn parses_safetensors_header_without_loading_payload() {
@@ -491,6 +491,51 @@ mod tests {
         let index = inspect(file.path()).unwrap();
         assert_eq!(index.tensors[0].offset, 128);
         assert_eq!(index.tensors[0].length, 8);
+    }
+
+    #[test]
+    fn representative_gguf_and_safetensors_fixtures_route_and_parse() {
+        let directory = tempdir().unwrap();
+
+        let safetensors_header = br#"{"weight":{"dtype":"F32","shape":[2],"data_offsets":[0,8]}}"#;
+        let safetensors_path = directory.path().join("tiny.safetensors");
+        let mut safetensors = File::create(&safetensors_path).unwrap();
+        safetensors
+            .write_all(&(safetensors_header.len() as u64).to_le_bytes())
+            .unwrap();
+        safetensors.write_all(safetensors_header).unwrap();
+        safetensors.write_all(&[0; 8]).unwrap();
+
+        let mut gguf_bytes = Vec::new();
+        gguf_bytes.extend_from_slice(b"GGUF");
+        gguf_bytes.write_u32::<LittleEndian>(3).unwrap();
+        gguf_bytes.write_u64::<LittleEndian>(1).unwrap();
+        gguf_bytes.write_u64::<LittleEndian>(1).unwrap();
+        gguf_bytes.write_u64::<LittleEndian>(17).unwrap();
+        gguf_bytes.extend_from_slice(b"general.alignment");
+        gguf_bytes.write_u32::<LittleEndian>(4).unwrap();
+        gguf_bytes.write_u32::<LittleEndian>(64).unwrap();
+        gguf_bytes.write_u64::<LittleEndian>(1).unwrap();
+        gguf_bytes.extend_from_slice(b"x");
+        gguf_bytes.write_u32::<LittleEndian>(1).unwrap();
+        gguf_bytes.write_u64::<LittleEndian>(2).unwrap();
+        gguf_bytes.write_u32::<LittleEndian>(0).unwrap();
+        gguf_bytes.write_u64::<LittleEndian>(0).unwrap();
+        gguf_bytes.resize(128, 0);
+        gguf_bytes.extend_from_slice(&[0; 8]);
+        let gguf_path = directory.path().join("tiny.gguf");
+        std::fs::write(&gguf_path, gguf_bytes).unwrap();
+
+        let safetensors_index = inspect(&safetensors_path).unwrap();
+        assert_eq!(safetensors_index.format, ArtifactFormat::Safetensors);
+        assert_eq!(safetensors_index.tensors[0].descriptor.name, "weight");
+        assert_eq!(safetensors_index.tensors[0].length, 8);
+
+        let gguf_index = inspect(&gguf_path).unwrap();
+        assert_eq!(gguf_index.format, ArtifactFormat::Gguf);
+        assert_eq!(gguf_index.tensors[0].descriptor.name, "x");
+        assert_eq!(gguf_index.tensors[0].offset, 128);
+        assert_eq!(gguf_index.tensors[0].length, 8);
     }
 
     #[test]
