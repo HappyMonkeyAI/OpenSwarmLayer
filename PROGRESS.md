@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: 85cc3da Add DHT provider discovery acceptance test
+HEAD: a185742 Record DHT discovery acceptance evidence
 
 ## Completed this session
 
