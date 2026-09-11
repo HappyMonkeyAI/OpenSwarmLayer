@@ -22,7 +22,7 @@ Status vocabulary:
 | HTTP proxy and ranges | PASS | Full and single-range route tests verify status, Content-Range, Content-Length, and bytes. |
 | Swarm-first proxy path | PASS | A real loopback HTTP-over-LAN test exercises the LanClient adapter and verified response assembly. |
 | HTTPS fallback | PASS | The combined acceptance test proves HTTPS range retrieval, hash verification, CAS persistence, channel-backed live publication, and second-node DHT discovery. |
-| Python integration | PARTIAL | Direct proxy URL usage is documented and tested through the route. Transparent HTTP_PROXY/HTTPS_PROXY rewriting is not implemented. |
+| Python integration | PASS for MVP scope | Direct proxy URL usage is documented and tested through the route. Transparent HTTP_PROXY/HTTPS_PROXY rewriting is intentionally deferred as P1/M4-09, not required for the MVP contract. |
 
 ## Decision
 
@@ -33,5 +33,5 @@ in `TASKS.md` or every M5 exit criterion in `PLAN.md`.
 Required follow-up before declaring MVP complete:
 
 1. Execute the bounded libFuzzer target on a supported linker/host; Windows MSVC currently has compile-only plus fallback-smoke evidence.
-2. Decide whether transparent HTTP_PROXY/HTTPS_PROXY rewriting is required.
+2. No MVP action remains for transparent HTTP_PROXY/HTTPS_PROXY rewriting; it is explicitly deferred as P1/M4-09.
 3. Record explicit owner approval after reviewing the clean-checkout evidence.

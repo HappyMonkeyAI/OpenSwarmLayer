@@ -31,8 +31,9 @@ ts-cli proxy-manifest 127.0.0.1:9090 model.tswarm .tswarm-cache https://model.ex
 ts-cli proxy-manifest 127.0.0.1:9090 model.tswarm .tswarm-cache https://model.example/model.safetensors <peer-id> <multiaddress>
 ```
 
-Clients can request `http://127.0.0.1:9090/file/<manifest-path>` directly. Transparent
-`HTTP_PROXY`/`HTTPS_PROXY` origin-url handling remains a tracked M4-09 task.
+Clients must request `http://127.0.0.1:9090/file/<manifest-path>` directly. Transparent
+`HTTP_PROXY`/`HTTPS_PROXY` origin-url rewriting is intentionally out of scope for the MVP;
+the explicit localhost URL avoids hidden routing and environment-dependent behavior.
 
 ### Python client example
 

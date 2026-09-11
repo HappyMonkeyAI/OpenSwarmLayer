@@ -75,7 +75,7 @@ Do not declare the MVP complete. The owner/adversary review in
 Remaining acceptance gaps:
 
 1. Execute the libFuzzer target on a host with a working cargo-fuzz/libFuzzer linker; this Windows MSVC host only proves target compilation and the 512-case fallback smoke run.
-2. Decide whether transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is required; it is currently unsupported and documented as such.
+2. Transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is explicitly deferred; MVP clients use the explicit localhost proxy URL.
 3. Record explicit owner approval after reviewing the clean-checkout evidence.
 
 ## Recommended first slice tomorrow

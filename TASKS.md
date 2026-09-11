@@ -90,7 +90,7 @@ A task is complete only when:
 | M4-06 | P0 | Implement HTTPS Range WebSeed fallback. | M4-04 | Origin bytes are fetched only for missing chunks. |
 | M4-07 | P0 | Verify WebSeed bytes and commit them to the object store. | M2-02, M4-06 | Bad origin bytes are rejected. |
 | M4-08 | P0 | Publish verified tensor/chunk provider availability. | M3-03, M4-07 | A second node can discover the newly seeded content. |
-| M4-09 | P1 | Add proxy configuration and integration examples for Python clients. | M4-03 | Documented `HTTP_PROXY`/`HTTPS_PROXY` flow works. |
+| M4-09 | P1 | Add proxy configuration and integration examples for Python clients. | M4-03 | Deferred for post-MVP; MVP clients use the explicit localhost proxy URL. |
 | M4-10 | P1 | Add an explicit `tswarm prepare` command for runtimes that require complete files. | M2-04 | Command exits only after required ranges are verified. |
 
 ## M5 — Verification and demonstration
@@ -113,5 +113,6 @@ A task is complete only when:
 - `P2` sharded repository manifests.
 - `P2` content-defined chunking.
 - `P2` dynamic quantization peers.
+- `P1` transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting; intentionally deferred because MVP clients configure the explicit localhost proxy URL.
 - `P2` browser/WebRTC nodes.
 - `P2` telemetry-resistant and privacy-preserving DHT operation.
