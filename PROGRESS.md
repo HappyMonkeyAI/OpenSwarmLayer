@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: efc93d9 Record clean checkout verification
+HEAD: 8cb99ea Defer transparent proxy rewriting from MVP
 
 ## Completed this session
 
