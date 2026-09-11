@@ -33,6 +33,7 @@ HEAD: eb3b889 Add independent process LAN acceptance
 - Ran the actual `format_inspect` libFuzzer target under Ubuntu WSL2 nightly Rust: 1,000 bounded runs, 4 KiB maximum input, 219 coverage features, no crash.
 - Added representative `.gguf` and `.safetensors` fixture routing/metadata coverage and removed a local HTTPS test startup race exposed by the full suite.
 - Added and passed the independent-process `ts-cli` LAN acceptance test: a spawned provider node serves a verified chunk to a separately spawned fetch process.
+- Added selective unreferenced-object repair to the content-addressed store; the live object is preserved and the dead object is removed by regression test.
 
 ## Recent commits
 
@@ -68,7 +69,7 @@ The latest full workspace verification passed:
 - `cargo run --manifest-path fuzz/Cargo.toml --bin format_inspect_smoke`
 - `cargo test -p ts-proxy https_webseed_fallback_verifies_stores_and_notifies`
 
-Current unit-test counts are 1 (`ts-core`), 9 (`ts-format`), 14 (`ts-p2p`), 10 (`ts-proxy`), 4 (`ts-store`), and 1 (`ts-cli` integration test), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
+Current unit-test counts are 1 (`ts-core`), 9 (`ts-format`), 14 (`ts-p2p`), 10 (`ts-proxy`), 5 (`ts-store`), and 1 (`ts-cli` integration test), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
 
 ## MVP decision
 

@@ -153,6 +153,17 @@ impl ObjectStore {
         Ok(garbage)
     }
 
+    pub fn remove_unreferenced_objects(
+        &self,
+        live: impl IntoIterator<Item = Hash32>,
+    ) -> Result<Vec<PathBuf>, StoreError> {
+        let garbage = self.unreferenced_objects(live)?;
+        for path in &garbage {
+            fs::remove_file(path)?;
+        }
+        Ok(garbage)
+    }
+
     pub fn save_state(&self, name: &str, state: &VerifiedChunks) -> Result<PathBuf, StoreError> {
         let destination = self.root.join(format!("{name}.tsstate"));
         let temporary = destination.with_extension("tsstate.tmp");
@@ -295,6 +306,22 @@ mod tests {
         assert_eq!(garbage, vec![store.object_path(dead)]);
         assert!(store.object_path(live).is_file());
         assert!(store.object_path(dead).is_file());
+    }
+
+    #[test]
+    fn repair_removes_only_unreferenced_objects() {
+        let root = tempfile::tempdir().unwrap();
+        let store = ObjectStore::open(root.path()).unwrap();
+        let live = sha256(b"live");
+        let dead = sha256(b"dead");
+        store.put_verified(live, b"live").unwrap();
+        store.put_verified(dead, b"dead").unwrap();
+
+        let removed = store.remove_unreferenced_objects([live]).unwrap();
+
+        assert_eq!(removed, vec![store.object_path(dead)]);
+        assert!(store.contains(live));
+        assert!(!store.contains(dead));
     }
 
     #[test]
