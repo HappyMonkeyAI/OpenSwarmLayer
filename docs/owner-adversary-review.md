@@ -12,7 +12,7 @@ Status vocabulary:
 
 | Area | Status | Evidence and remaining risk |
 |---|---|---|
-| Local GGUF/Safetensors inspection | PASS | Header-only parsers, bounds checks, malformed corpus, and generated chunk properties pass. Dedicated fuzz-target execution and broad real-format fixtures remain. |
+| Local GGUF/Safetensors inspection | PARTIAL | Header-only parsers, bounds checks, malformed corpus, generated chunk properties, and a bounded libFuzzer target are present. The target compiles and the fallback smoke runs on Windows MSVC, but libFuzzer execution requires a supported linker/host. |
 | Deterministic identity and manifests | PASS | Manifest root and serialization tests pass; parser and manifest commands are implemented. |
 | Verified storage and materialization | PASS | Hash-verified CAS writes and byte reconstruction tests pass. Repair and bitmap integration are not fully demonstrated. |
 | LAN authenticated transfer | PARTIAL | Loopback nodes transfer verified chunks and use QUIC/TCP, Noise, and Yamux. The bounded acceptance coverage is still in-process rather than two independently spawned OS processes. |
@@ -33,6 +33,6 @@ in `TASKS.md` or every M5 exit criterion in `PLAN.md`.
 Required follow-up before declaring MVP complete:
 
 1. Add an integration fixture proving peer-observed cancellation and bounded in-flight behavior.
-2. Add a dedicated bounded fuzz target or equivalent independently runnable fuzz job.
+2. Execute the bounded libFuzzer target on a supported linker/host; Windows MSVC currently has compile-only plus fallback-smoke evidence.
 3. Exercise successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.
 4. Re-run the review from a clean checkout and record owner approval.

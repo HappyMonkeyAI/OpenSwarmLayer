@@ -23,10 +23,14 @@ HEAD: a185742 Record DHT discovery acceptance evidence
 - Added a bounded two-node Kademlia provider-discovery acceptance test that proves a second node finds a seeded tensor provider.
 - Added bounded LAN request accounting and wire cancellation signaling for chunk fetches.
 - Added malicious-peer integration fixtures covering wrong hashes and oversized responses.
+- Added an excluded `fuzz` package with a bounded libFuzzer `format_inspect` target, portable fallback smoke runner, and usage documentation.
 
 ## Recent commits
 
 - `6a7ed74` — Record MVP owner adversary review
+- `c39904c` — Add malicious peer rejection fixtures
+- `2e0ca4d` — Bound LAN requests and signal cancellation
+- `3a97328` — Record malicious peer acceptance evidence
 - `85cc3da` — Add DHT provider discovery acceptance test
 - `de9ee25` — Add reproducible format benchmarks
 - `6031357` — Add generated chunk planning properties
@@ -47,6 +51,8 @@ The latest full workspace verification passed:
 - `cargo check --workspace`
 - `cargo test --workspace`
 - `git diff --check`
+- `cargo check --manifest-path fuzz/Cargo.toml --bin format_inspect`
+- `cargo run --manifest-path fuzz/Cargo.toml --bin format_inspect_smoke`
 
 Current unit-test counts are 1 (`ts-core`), 8 (`ts-format`), 13 (`ts-p2p`), 8 (`ts-proxy`), 4 (`ts-store`), and 0 (`ts-cli`), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
 
@@ -58,16 +64,16 @@ Do not declare the MVP complete. The owner/adversary review in
 Remaining acceptance gaps:
 
 1. Add an integration fixture proving peer-observed cancellation and bounded in-flight behavior; current coverage verifies signaling and local accounting but not a delayed peer.
-2. Add and run a dedicated bounded fuzz target; current coverage is corpus plus `proptest` only.
+2. Execute the libFuzzer target on a host with a working cargo-fuzz/libFuzzer linker; this Windows MSVC host only proves target compilation and the 512-case fallback smoke run.
 3. Prove successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.
 4. Decide whether transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is required; it is currently unsupported and documented as such.
 5. Re-run the review from a clean checkout and record owner approval.
 
 ## Recommended first slice tomorrow
 
-Start with a dedicated bounded fuzz target for the parser/protocol boundary. Keep the
-target reproducible and leave the repository clean after formatting, workspace tests,
-and `git diff --check`.
+Start with the delayed-peer cancellation/backpressure integration fixture. Keep the
+fixture bounded and leave the repository clean after formatting, workspace tests, and
+`git diff --check`.
 
 ## Reporting note
 

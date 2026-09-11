@@ -1,0 +1,24 @@
+[package]
+name = "ts-fuzz"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+tempfile = "3"
+ts-format = { path = "../crates/ts-format" }
+
+[[bin]]
+name = "format_inspect"
+path = "fuzz_targets/format_inspect.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "format_inspect_smoke"
+path = "src/bin/format_inspect_smoke.rs"
