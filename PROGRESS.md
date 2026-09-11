@@ -3,7 +3,7 @@
 Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: 4a64819 Reconcile completed milestone ledger
+HEAD: a2066a2 Record Tauri desktop roadmap
 
 ## Completed this session
 
