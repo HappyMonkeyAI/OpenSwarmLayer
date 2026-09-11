@@ -959,4 +959,73 @@ mod tests {
         server_task.abort();
         assert_eq!(response, b"layer-zero");
     }
+
+    #[tokio::test]
+    async fn second_node_discovers_seeded_tensor_provider_through_dht() {
+        use futures::StreamExt;
+        use libp2p::kad::{GetProvidersOk, QueryResult};
+        use libp2p::swarm::SwarmEvent;
+
+        let tensor = Hash32([7; 32]);
+        let mut provider = ChunkProvider::default();
+        provider
+            .insert_chunk(tensor, 0, sha256(b"dht-payload"), b"dht-payload".to_vec())
+            .unwrap();
+
+        let mut server = build_lan_swarm_with_listeners(&["/ip4/127.0.0.1/tcp/0"]).unwrap();
+        let server_id = *server.local_peer_id();
+        publish_tensor(&mut server, &tensor).unwrap();
+        let (address_tx, address_rx) = tokio::sync::oneshot::channel();
+        let server_task = tokio::spawn(run_lan_node_with_provider_and_notify(
+            server,
+            provider,
+            Some(address_tx),
+        ));
+
+        let address = address_rx
+            .await
+            .unwrap()
+            .with(libp2p::multiaddr::Protocol::P2p(server_id.into()));
+        let mut client = build_lan_swarm_with_listeners(&[]).unwrap();
+        client.dial(address).unwrap();
+
+        let query_id = loop {
+            match client.select_next_some().await {
+                SwarmEvent::Behaviour(LanBehaviourEvent::Kad(
+                    libp2p::kad::Event::RoutingUpdated { peer, .. },
+                )) if peer == server_id => {
+                    break find_tensor_providers(&mut client, &tensor);
+                }
+                _ => {}
+            }
+        };
+
+        let discovered = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if let SwarmEvent::Behaviour(LanBehaviourEvent::Kad(event)) =
+                    client.select_next_some().await
+                {
+                    if let libp2p::kad::Event::OutboundQueryProgressed {
+                        id,
+                        result:
+                            QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders {
+                                providers,
+                                ..
+                            })),
+                        ..
+                    } = event
+                    {
+                        if id == query_id {
+                            return providers.contains(&server_id);
+                        }
+                    }
+                }
+            }
+        })
+        .await
+        .expect("DHT provider lookup timed out");
+
+        server_task.abort();
+        assert!(discovered, "DHT lookup did not return the seeded provider");
+    }
 }
