@@ -16,7 +16,7 @@ Status vocabulary:
 | Local GGUF/Safetensors inspection | PASS | Header-only parsers, bounds checks, representative `.gguf`/`.safetensors` fixture routing and metadata tests, generated chunk properties, and a bounded libFuzzer target are present. Ubuntu WSL2 executed 1,000 bounded runs with 219 coverage features and no crash. |
 | Deterministic identity and manifests | PASS | Manifest root and serialization tests pass; parser and manifest commands are implemented. |
 | Verified storage and materialization | PASS | Hash-verified CAS writes and byte reconstruction tests pass. Repair and bitmap integration are not fully demonstrated. |
-| LAN authenticated transfer | PARTIAL | Loopback nodes transfer verified chunks and use QUIC/TCP, Noise, and Yamux. The bounded acceptance coverage is still in-process rather than two independently spawned OS processes. |
+| LAN authenticated transfer | PASS | The independent-process `ts-cli` acceptance test spawns a manifest-backed provider node and a separate fetch process; Node B retrieves and verifies the chunk over the authenticated LAN transport. |
 | Kademlia provider discovery | PASS | `second_node_discovers_seeded_tensor_provider_through_dht` connects a second swarm, waits for routing-table admission, and verifies the seeded tensor provider is returned by `get_providers`. |
 | Bounded transfer behavior | PASS | Chunk fetches send `Cancel` on cancellation/timeout, flush the wire signal within a bounded window, release peer-associated in-flight state, and the delayed-peer integration fixture verifies peer observation. |
 | Corrupt-peer handling | PASS | Malicious-peer integration fixtures send wrong hashes and oversized payloads; the client rejects both and does not accept the payload. |
@@ -34,4 +34,3 @@ HTTPS-to-live-DHT evidence.
 Documented post-MVP limitations:
 
 1. No MVP action remains for transparent HTTP_PROXY/HTTPS_PROXY rewriting; it is explicitly deferred as P1/M4-09.
-2. Independent OS-process LAN acceptance remains partial; the verified DHT acceptance uses two in-process swarms.

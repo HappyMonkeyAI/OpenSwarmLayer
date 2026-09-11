@@ -3,7 +3,21 @@ use std::fs;
 use std::path::PathBuf;
 
 fn usage() {
-    eprintln!("usage:\n  ts-cli node [manifest.tswarm] [store-root]\n  ts-cli proxy [bind] <root>\n  ts-cli proxy-manifest [bind] <manifest.tswarm> <store-root> <origin-url> [peer-id] [peer-address]\n  ts-cli inspect <model>\n  ts-cli manifest <model> <output.tswarm>\n  ts-cli verify <model> <manifest.tswarm>\n  ts-cli diff <old.tswarm> <new.tswarm>");
+    eprintln!("usage:\n  ts-cli node [manifest.tswarm] [store-root]\n  ts-cli fetch-chunk <peer-id> <peer-address> <tensor-hash-hex> <chunk-index> <chunk-hash-hex> <output>\n  ts-cli proxy [bind] <root>\n  ts-cli proxy-manifest [bind] <manifest.tswarm> <store-root> <origin-url> [peer-id] [peer-address]\n  ts-cli inspect <model>\n  ts-cli manifest <model> <output.tswarm>\n  ts-cli verify <model> <manifest.tswarm>\n  ts-cli diff <old.tswarm> <new.tswarm>");
+}
+
+fn parse_hash(value: &std::ffi::OsStr) -> Result<ts_core::Hash32> {
+    let value = value.to_str().context("hash must be valid UTF-8")?;
+    anyhow::ensure!(
+        value.len() == 64,
+        "hash must contain 64 hexadecimal characters"
+    );
+    let mut bytes = [0_u8; 32];
+    for (index, byte) in bytes.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16)
+            .context("hash must be hexadecimal")?;
+    }
+    Ok(ts_core::Hash32(bytes))
 }
 
 #[tokio::main]
@@ -29,7 +43,59 @@ async fn main() -> Result<()> {
                 }
                 None => ts_p2p::ChunkProvider::default(),
             };
-            ts_p2p::run_lan_node_with_provider(swarm, provider).await?;
+            let peer_id = *swarm.local_peer_id();
+            let (listen_tx, listen_rx) = tokio::sync::oneshot::channel();
+            let node = tokio::spawn(ts_p2p::run_lan_node_with_provider_and_notify(
+                swarm,
+                provider,
+                Some(listen_tx),
+            ));
+            println!("peer: {peer_id}");
+            if let Ok(address) = listen_rx.await {
+                println!("listen: {address}");
+            }
+            node.await??;
+        }
+        Some("fetch-chunk") => {
+            let peer_id = args
+                .next()
+                .context("missing peer ID")?
+                .to_str()
+                .context("peer ID must be valid UTF-8")?
+                .parse::<libp2p::PeerId>()
+                .context("invalid peer ID")?;
+            let peer_address = args
+                .next()
+                .context("missing peer address")?
+                .to_str()
+                .context("peer address must be valid UTF-8")?
+                .parse::<libp2p::Multiaddr>()
+                .context("invalid peer address")?;
+            let tensor_hash = parse_hash(&args.next().context("missing tensor hash")?)?;
+            let chunk_index = args
+                .next()
+                .context("missing chunk index")?
+                .to_str()
+                .context("chunk index must be valid UTF-8")?
+                .parse()?;
+            let expected_hash = parse_hash(&args.next().context("missing chunk hash")?)?;
+            let output = PathBuf::from(args.next().context("missing output path")?);
+            anyhow::ensure!(args.next().is_none(), "too many fetch-chunk arguments");
+            let mut client = ts_p2p::LanClient::new(ts_p2p::build_lan_swarm_with_listeners(&[])?);
+            client.swarm_mut().dial(peer_address)?;
+            let bytes = client
+                .fetch_chunk(
+                    peer_id,
+                    ts_p2p::ChunkRequest {
+                        request_id: u64::from(chunk_index),
+                        tensor_hash,
+                        chunk_index,
+                        expected_hash,
+                    },
+                    3,
+                )
+                .await?;
+            fs::write(output, bytes)?;
         }
         Some("proxy") => {
             let bind = args

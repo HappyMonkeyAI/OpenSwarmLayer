@@ -3554,6 +3554,7 @@ dependencies = [
  "anyhow",
  "libp2p",
  "serde_cbor",
+ "tempfile",
  "tokio",
  "ts-core",
  "ts-format",
