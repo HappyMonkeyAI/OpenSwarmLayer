@@ -17,7 +17,7 @@ Status vocabulary:
 | Verified storage and materialization | PASS | Hash-verified CAS writes and byte reconstruction tests pass. Repair and bitmap integration are not fully demonstrated. |
 | LAN authenticated transfer | PARTIAL | Loopback nodes transfer verified chunks and use QUIC/TCP, Noise, and Yamux. The bounded acceptance coverage is still in-process rather than two independently spawned OS processes. |
 | Kademlia provider discovery | PASS | `second_node_discovers_seeded_tensor_provider_through_dht` connects a second swarm, waits for routing-table admission, and verifies the seeded tensor provider is returned by `get_providers`. |
-| Bounded transfer behavior | PARTIAL | Timeouts, retries, cancellation checks, and bounded request batches exist. Wire-level cancellation and full in-flight backpressure accounting remain open. |
+| Bounded transfer behavior | PARTIAL | Chunk fetches now send `Cancel` on cancellation/timeout and account for bounded outbound requests. A delayed-peer integration fixture is still needed to prove peer-observed cancellation and sustained in-flight limits. |
 | Corrupt-peer handling | PARTIAL | Invalid decoded responses are rejected and disconnected without CAS writes. A malicious-peer integration fixture for wrong hashes and oversized frames is still missing. |
 | HTTP proxy and ranges | PASS | Full and single-range route tests verify status, Content-Range, Content-Length, and bytes. |
 | Swarm-first proxy path | PASS | A real loopback HTTP-over-LAN test exercises the LanClient adapter and verified response assembly. |
@@ -32,7 +32,7 @@ in `TASKS.md` or every M5 exit criterion in `PLAN.md`.
 
 Required follow-up before declaring MVP complete:
 
-1. Add wire-level cancellation and complete in-flight backpressure accounting.
+1. Add an integration fixture proving peer-observed cancellation and bounded in-flight behavior.
 2. Add malicious-peer integration fixtures, including oversized-frame behavior.
 3. Add a dedicated bounded fuzz target or equivalent independently runnable fuzz job.
 4. Exercise successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.

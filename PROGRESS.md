@@ -21,6 +21,7 @@ HEAD: a185742 Record DHT discovery acceptance evidence
 - Added Criterion benchmarks and recorded a reproducible primitive benchmark snapshot.
 - Added the owner/adversary review; MVP remains explicitly blocked.
 - Added a bounded two-node Kademlia provider-discovery acceptance test that proves a second node finds a seeded tensor provider.
+- Added bounded LAN request accounting and wire cancellation signaling for chunk fetches.
 
 ## Recent commits
 
@@ -55,7 +56,7 @@ Do not declare the MVP complete. The owner/adversary review in
 
 Remaining acceptance gaps:
 
-1. Implement wire-level cancellation and complete in-flight backpressure accounting.
+1. Add an integration fixture proving peer-observed cancellation and bounded in-flight behavior; current coverage verifies signaling and local accounting but not a delayed peer.
 2. Add malicious-peer integration fixtures for wrong hashes and oversized frames.
 3. Add and run a dedicated bounded fuzz target; current coverage is corpus plus `proptest` only.
 4. Prove successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.
@@ -64,9 +65,9 @@ Remaining acceptance gaps:
 
 ## Recommended first slice tomorrow
 
-Start with wire-level cancellation and in-flight backpressure accounting. Keep the
-implementation bounded, exercise cancellation over the request-response boundary, and
-leave the repository clean after formatting, workspace tests, and `git diff --check`.
+Start with malicious-peer integration fixtures for wrong hashes and oversized frames.
+Keep the fixtures bounded and leave the repository clean after formatting, workspace
+tests, and `git diff --check`.
 
 ## Reporting note
 
