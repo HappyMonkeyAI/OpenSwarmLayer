@@ -30,6 +30,7 @@ HEAD: 8cb99ea Defer transparent proxy rewriting from MVP
 - Added a channel-backed `FetchEngine` notification adapter so verified WebSeed chunks can feed the live publication channel.
 - Added the combined HTTPS fallback, live publication, and second-node discovery acceptance test.
 - Re-ran the workspace and bounded fuzz-smoke verification from a clean detached checkout; all checks passed.
+- Ran the actual `format_inspect` libFuzzer target under Ubuntu WSL2 nightly Rust: 1,000 bounded runs, 4 KiB maximum input, 219 coverage features, no crash.
 
 ## Recent commits
 
@@ -74,9 +75,9 @@ Do not declare the MVP complete. The owner/adversary review in
 
 Remaining acceptance gaps:
 
-1. Execute the libFuzzer target on a host with a working cargo-fuzz/libFuzzer linker; this Windows MSVC host only proves target compilation and the 512-case fallback smoke run.
+1. Add/validate representative GGUF and Safetensors format fixtures.
 2. Transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is explicitly deferred; MVP clients use the explicit localhost proxy URL.
-3. Record explicit owner approval after reviewing the clean-checkout evidence.
+3. Record explicit owner approval after reviewing the clean-checkout and supported-host fuzz evidence.
 
 ## Recommended first slice tomorrow
 
