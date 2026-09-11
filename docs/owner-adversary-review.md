@@ -21,7 +21,7 @@ Status vocabulary:
 | Corrupt-peer handling | PASS | Malicious-peer integration fixtures send wrong hashes and oversized payloads; the client rejects both and does not accept the payload. |
 | HTTP proxy and ranges | PASS | Full and single-range route tests verify status, Content-Range, Content-Length, and bytes. |
 | Swarm-first proxy path | PASS | A real loopback HTTP-over-LAN test exercises the LanClient adapter and verified response assembly. |
-| HTTPS fallback | PARTIAL | A local HTTPS WebSeed acceptance test proves range retrieval, hash verification, CAS persistence, and provider notification. Runtime DHT publication is now proven through the live-node event channel, but wiring HTTPS fallback notifications into that channel end to end is still missing. |
+| HTTPS fallback | PARTIAL | A local HTTPS WebSeed acceptance test proves range retrieval, hash verification, CAS persistence, and channel-backed provider notification. Runtime DHT publication is separately proven through the live-node event channel; the combined fallback-to-second-node acceptance test is still missing. |
 | Python integration | PARTIAL | Direct proxy URL usage is documented and tested through the route. Transparent HTTP_PROXY/HTTPS_PROXY rewriting is not implemented. |
 
 ## Decision

@@ -143,6 +143,12 @@ impl FetchEngine {
         self
     }
 
+    pub fn with_verified_chunk_sender(self, sender: tokio::sync::mpsc::Sender<Hash32>) -> Self {
+        self.with_verified_chunk_notify(Arc::new(move |hash| {
+            let _ = sender.try_send(hash);
+        }))
+    }
+
     /// Resolve one manifest chunk using CAS, then swarm, then HTTPS WebSeed.
     /// Only bytes whose expected hash matches are persisted.
     pub async fn fetch_chunk(
@@ -1042,14 +1048,11 @@ mod tests {
             tokio::spawn(axum_server::bind_rustls(address, tls).serve(app.into_make_service()));
         let root = tempfile::tempdir().unwrap();
         let store = ts_store::ObjectStore::open(root.path()).unwrap();
-        let notifications = Arc::new(AtomicUsize::new(0));
-        let observed = Arc::clone(&notifications);
+        let (publish_tx, mut publish_rx) = tokio::sync::mpsc::channel(1);
+        let engine = FetchEngine::new(store.clone()).with_verified_chunk_sender(publish_tx);
         let engine = FetchEngine {
-            store: store.clone(),
             webseed: WebSeeder::with_client(client),
-            verified_chunk_notify: Some(Arc::new(move |_| {
-                observed.fetch_add(1, Ordering::Relaxed);
-            })),
+            ..engine
         };
         let url = format!("https://localhost:{}/model.bin", address.port());
         let bytes = engine
@@ -1059,6 +1062,6 @@ mod tests {
         server.abort();
         assert_eq!(bytes, b"https-fallback");
         assert_eq!(store.get(expected).unwrap(), b"https-fallback");
-        assert_eq!(notifications.load(Ordering::Relaxed), 1);
+        assert_eq!(publish_rx.recv().await, Some(expected));
     }
 }
