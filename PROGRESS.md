@@ -1,9 +1,9 @@
 # TensorSwarm progress handoff
 
-Last updated: 2026-09-10
+Last updated: 2026-09-11
 Branch: master
 Working tree: clean
-HEAD: 6a7ed74 Record MVP owner adversary review
+HEAD: 85cc3da Add DHT provider discovery acceptance test
 
 ## Completed this session
 
@@ -20,10 +20,12 @@ HEAD: 6a7ed74 Record MVP owner adversary review
 - Added a bounded 512-case malformed parser corpus and generated `proptest` chunk-coverage checks.
 - Added Criterion benchmarks and recorded a reproducible primitive benchmark snapshot.
 - Added the owner/adversary review; MVP remains explicitly blocked.
+- Added a bounded two-node Kademlia provider-discovery acceptance test that proves a second node finds a seeded tensor provider.
 
 ## Recent commits
 
 - `6a7ed74` — Record MVP owner adversary review
+- `85cc3da` — Add DHT provider discovery acceptance test
 - `de9ee25` — Add reproducible format benchmarks
 - `6031357` — Add generated chunk planning properties
 - `e7755d2` — Correct demo acceptance commands
@@ -44,7 +46,7 @@ The latest full workspace verification passed:
 - `cargo test --workspace`
 - `git diff --check`
 
-Current unit-test counts are 1 (`ts-core`), 8 (`ts-format`), 10 (`ts-p2p`), 8 (`ts-proxy`), 4 (`ts-store`), and 0 (`ts-cli`), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
+Current unit-test counts are 1 (`ts-core`), 8 (`ts-format`), 11 (`ts-p2p`), 8 (`ts-proxy`), 4 (`ts-store`), and 0 (`ts-cli`), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
 
 ## MVP decision
 
@@ -53,20 +55,17 @@ Do not declare the MVP complete. The owner/adversary review in
 
 Remaining acceptance gaps:
 
-1. Add a real two-process or DHT provider-discovery acceptance test.
-2. Implement wire-level cancellation and complete in-flight backpressure accounting.
-3. Add malicious-peer integration fixtures for wrong hashes and oversized frames.
-4. Add and run a dedicated bounded fuzz target; current coverage is corpus plus `proptest` only.
-5. Prove successful HTTPS fallback, provider publication, and second-node discovery.
-6. Decide whether transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is required; it is currently unsupported and documented as such.
-7. Re-run the review from a clean checkout and record owner approval.
+1. Implement wire-level cancellation and complete in-flight backpressure accounting.
+2. Add malicious-peer integration fixtures for wrong hashes and oversized frames.
+3. Add and run a dedicated bounded fuzz target; current coverage is corpus plus `proptest` only.
+4. Prove successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.
+5. Decide whether transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is required; it is currently unsupported and documented as such.
+6. Re-run the review from a clean checkout and record owner approval.
 
 ## Recommended first slice tomorrow
 
-Start with the two-process/DHT acceptance test. Reuse the existing loopback provider and
-proxy fixtures, move the provider and requester into independently spawned processes or
-independent test binaries, verify provider lookup returns the reachable peer, then issue
-a proxy range request and read back the verified CAS object. Keep the test bounded and
+Start with wire-level cancellation and in-flight backpressure accounting. Keep the
+implementation bounded, exercise cancellation over the request-response boundary, and
 leave the repository clean after formatting, workspace tests, and `git diff --check`.
 
 ## Reporting note

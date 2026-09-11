@@ -15,8 +15,8 @@ Status vocabulary:
 | Local GGUF/Safetensors inspection | PASS | Header-only parsers, bounds checks, malformed corpus, and generated chunk properties pass. Dedicated fuzz-target execution and broad real-format fixtures remain. |
 | Deterministic identity and manifests | PASS | Manifest root and serialization tests pass; parser and manifest commands are implemented. |
 | Verified storage and materialization | PASS | Hash-verified CAS writes and byte reconstruction tests pass. Repair and bitmap integration are not fully demonstrated. |
-| LAN authenticated transfer | PARTIAL | Loopback nodes transfer verified chunks and use QUIC/TCP, Noise, and Yamux. The documented M3 acceptance asks for two-process discovery; current evidence is an in-process spawned-node test. |
-| Kademlia provider discovery | PARTIAL | Provider publication and lookup helpers exist, but a test proving a second node discovers newly seeded content through DHT is missing. |
+| LAN authenticated transfer | PARTIAL | Loopback nodes transfer verified chunks and use QUIC/TCP, Noise, and Yamux. The bounded acceptance coverage is still in-process rather than two independently spawned OS processes. |
+| Kademlia provider discovery | PASS | `second_node_discovers_seeded_tensor_provider_through_dht` connects a second swarm, waits for routing-table admission, and verifies the seeded tensor provider is returned by `get_providers`. |
 | Bounded transfer behavior | PARTIAL | Timeouts, retries, cancellation checks, and bounded request batches exist. Wire-level cancellation and full in-flight backpressure accounting remain open. |
 | Corrupt-peer handling | PARTIAL | Invalid decoded responses are rejected and disconnected without CAS writes. A malicious-peer integration fixture for wrong hashes and oversized frames is still missing. |
 | HTTP proxy and ranges | PASS | Full and single-range route tests verify status, Content-Range, Content-Length, and bytes. |
@@ -32,9 +32,8 @@ in `TASKS.md` or every M5 exit criterion in `PLAN.md`.
 
 Required follow-up before declaring MVP complete:
 
-1. Add a real two-process or DHT provider-discovery acceptance test.
-2. Add wire-level cancellation and complete in-flight backpressure accounting.
-3. Add malicious-peer integration fixtures, including oversized-frame behavior.
-4. Add a dedicated bounded fuzz target or equivalent independently runnable fuzz job.
-5. Exercise successful HTTPS fallback, provider publication, and second-node discovery.
-6. Re-run the review from a clean checkout and record owner approval.
+1. Add wire-level cancellation and complete in-flight backpressure accounting.
+2. Add malicious-peer integration fixtures, including oversized-frame behavior.
+3. Add a dedicated bounded fuzz target or equivalent independently runnable fuzz job.
+4. Exercise successful HTTPS fallback, provider publication, and second-node discovery through the production fallback path.
+5. Re-run the review from a clean checkout and record owner approval.
