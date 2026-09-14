@@ -113,7 +113,7 @@ A task is complete only when:
 | M6-02 | P1 | Move long-running P2P and proxy ownership into `ts-daemon`. | M6-01 | DONE — independent process acceptance verifies authenticated status, owned proxy health, clean shutdown, and control/proxy port release. |
 | M6-03 | P1 | Expose model inventory, verification, preparation, cache repair, transfer, peer, and metric operations. | M6-02 | DONE — independent process acceptance covers all operations, including successful daemon-to-daemon transfer and hash-verified CAS persistence. |
 | M6-04 | P1 | Add the minimal Tauri shell over the daemon control API. | M6-03 | IN_PROGRESS — Tauri v2 shell now provides a qBittorrent-inspired overview, model library/search/detail, transfer metrics, peer/source view, settings, cache repair, preparation actions, and live daemon status. Native window rendering and populated fixture readback pass; production daemon live-data readback remains. |
-| M6-05 | P1 | Package and acceptance-test Windows/Linux desktop installs. | M6-04 | IN_PROGRESS — Windows release MSI and NSIS bundles build; NSIS install, launch, upgrade, and uninstall pass; tray menu and close-to-tray implementations compile and package, but targeted tray interaction and Linux packaging remain. |
+| M6-05 | P1 | Package and acceptance-test Windows/Linux desktop installs. | M6-04 | IN_PROGRESS — Windows release MSI and NSIS install/launch/upgrade/uninstall pass; Linux DEB, RPM, and AppImage bundles build, and DEB install/remove passes in WSL. Targeted Windows tray interaction and Linux GUI launch/live-data readback remain. |
 
 ## Deferred Backlog
 
