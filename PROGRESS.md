@@ -1,9 +1,9 @@
 # TensorSwarm progress handoff
 
-Last updated: 2026-09-13
+Last updated: 2026-09-14
 Branch: master
-Working tree: modified (M6 daemon/Tauri implementation and documentation)
-HEAD: f4f2be9 Correct MIT copyright holder
+Working tree: clean except for the pre-existing untracked reference screenshot
+HEAD: 4e3caae chore: verify Linux desktop packaging
 
 ## Completed this session
 
@@ -60,9 +60,12 @@ HEAD: f4f2be9 Correct MIT copyright holder
 - Reworked the Tauri control UI into a qBittorrent-inspired model exchange workspace: overview metrics, searchable model library, manifest detail, preparation actions, transfer metrics, peer/source view, settings, cache repair, connection state, and honest empty/error states. Added restricted Tauri-origin CORS handling to the authenticated daemon API and covered preflight/authorized readback with a unit test.
 - Built Linux DEB, RPM, and AppImage bundles from WSL Ubuntu after installing the GTK/WebKit prerequisites through the WSL root entrypoint; verified DEB metadata, packaged executable presence, and clean install/remove. Linux GUI launch/live-data readback remains unverified because WSL has no graphical display. Added square Linux icons to the Tauri bundle configuration after the initial all-target build exposed the AppImage icon requirement.
 - Earlier WSL packaging attempt was blocked by missing GTK/WebKit dependencies and unavailable passwordless sudo; the later root-entrypoint installation and package build are recorded above.
+- Committed the Linux packaging verification slice as `4e3caae` and pushed it to `origin/master`; the remote branch SHA was read back and matched the local commit.
+- Probed the available Deepin 25 notebook at `Stephen@192.168.5.68` over read-only SSH: the host is x86_64 with an active Xorg session, Git 2.51.0, and Node 20.15.1. No checkout or Cargo/Tauri toolchain is present yet, and passwordless sudo is unavailable; the notebook is a viable next host for native Linux GUI and install/readback acceptance after user-approved setup.
 
 ## Recent commits
 
+- `4e3caae` — Verify Linux desktop packaging
 - `e7c012c` — Verify delayed peer cancellation
 - `a7e5a79` — Ignore workspace build artifacts
 - `7efb0cb` — Ignore fuzz build artifacts
@@ -111,7 +114,7 @@ Post-MVP limitations and deferred work:
 
 ## Recommended next slice
 
-Complete native tray interaction and live-data readback acceptance, then rerun Linux dependency installation/package verification in WSL2 and add a Linux clean-install check. Keep transparent proxy rewriting and the broader P2 backlog deferred.
+Set up the Deepin notebook with a checkout, Rust/Tauri toolchain, and the required GTK/WebKit packages, then run native Linux package installation, GUI launch, and daemon live-data readback acceptance there. Complete native Windows tray interaction separately. Keep transparent proxy rewriting and the broader P2 backlog deferred.
 
 ## Reporting note
 
