@@ -6,7 +6,17 @@ TensorSwarm is an open-source, tensor-native distribution engine for GGUF and Sa
 
 ## Current state
 
-The repository is at M0 foundation. The Rust workspace and crate boundaries exist; format parsing, manifests, networking, storage, and proxy behavior are not implemented yet.
+The local end-to-end MVP is accepted with limitations. M0 through M3 and M5
+are complete; M4's proxy, LAN, WebSeed, materialization, and verification paths
+are implemented and tested. The post-MVP M6 daemon/control-plane track now has
+an authenticated `ts-daemon`, a Tauri v2 shell, Windows MSI/NSIS artifacts, and
+verified NSIS install/upgrade/uninstall coverage. Transparent
+`HTTP_PROXY`/`HTTPS_PROXY` rewriting remains intentionally deferred as post-MVP
+work. Linux packaging is not yet verified.
+
+## Agents Protocol adoption
+
+The repository uses `AGENTS.md` for workflow and acceptance rules, `MCP.md` for portable intent routing, `BOOTSTRAP.md` for live MCP discovery, and `docs/adr/0002` through `0005` for the adopted protocol decisions. TensorSwarm remains the application authority; protocol documents must not overwrite its implementation roadmap or existing ADR-0001.
 
 ## MVP constraints
 

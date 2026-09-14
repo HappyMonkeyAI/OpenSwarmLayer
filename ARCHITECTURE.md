@@ -7,6 +7,8 @@ ts-cli
   ├── ts-store        content-addressed objects and materialization
   ├── ts-p2p          libp2p discovery and chunk transfer
   └── ts-proxy        HTTP Range facade and WebSeed fallback
+
+ts-daemon             local authenticated control surface (initial slice)
 ```
 
 ## Runtime flow
@@ -51,7 +53,18 @@ Tauri UI
           -> ts-proxy
 ```
 
+The desktop shell is organized around operator jobs rather than raw endpoint
+payloads: overview and node health, model library and manifest detail, transfer
+activity, peer/source discovery, and runtime settings/cache maintenance. The UI
+uses the existing authenticated control API and deliberately labels scheduler
+features that are not yet exposed by the daemon instead of simulating them.
+
 The daemon must also support headless CLI/server operation. The control API
 will expose inventory, transfer control, peer and metric status, verification,
 cache repair, preparation, and proxy/runtime settings. Local authentication
 and origin boundaries are required before UI control operations are enabled.
+
+The initial daemon slice provides a public `/healthz` probe and an authenticated
+`/v1/status` endpoint. P2P and proxy runtime ownership remain the next daemon
+integration step; the status response reports those components as not started
+until they are wired into the long-running process.

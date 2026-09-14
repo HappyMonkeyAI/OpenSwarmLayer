@@ -1,2 +1,4 @@
 target/
 fuzz/target/
+.worktrees/
+MCP.local.md

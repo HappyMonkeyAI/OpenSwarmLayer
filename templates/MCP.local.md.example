@@ -1,0 +1,18 @@
+# MCP.local.md
+
+- Last discovery: YYYY-MM-DD
+- Discovery source: live Hermes/Dynamic MCP catalogue or explicit operator config names
+
+## Mounted / confirmed
+- Add only servers actually confirmed in this environment.
+
+## Wanted but missing
+- Add project-relevant gaps and the reason.
+
+## Project-specific routing
+| Intent | Server | Evidence / note |
+|---|---|---|
+| Example | example_server | Add a live confirmation or gap note. |
+
+## LAN / runtime hints
+- Record hostnames and ports only; never add keys or tokens.

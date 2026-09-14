@@ -14,6 +14,7 @@ Priority values: `P0` required for MVP, `P1` important for a credible demo, `P2`
 | M3 — LAN P2P | DONE | Versioned peer protocol, domain-separated DHT keys, provider publication/lookup APIs, manifest-to-store provider inventory, bounded scheduler, deterministic peer scoring, authenticated QUIC/TCP transport, runtime node loop, verified chunk serving, bounded request batches, hash-verifying `LanClient`, wire cancellation, bounded in-flight accounting, `Have` exchange, in-process and independent-process transfer tests, transfer metrics, and live success/failure score updates are complete. |
 | M4 — HTTP proxy and WebSeed fallback | IN_PROGRESS | Axum/Tokio localhost daemon, streamed full/range file responses, path traversal guard, deterministic manifest-path and HTTPS-origin resolver, corrected identity-carrying `PeerFetch` contract, `LanClient`-backed peer fetch adapter, CLI `proxy`, `proxy-manifest`, and `prepare` commands, verified reqwest/rustls WebSeeder, verified WebSeed-to-object-store helper, `FetchEngine` CAS→peer→WebSeed source selection, post-verification provider notifications, LAN tensor DHT publication, and CLI wiring for WebSeed-to-live-publisher notifications added. Runtime smoke test, manifest-router integration test, real loopback HTTP-over-LAN acceptance test, origin-outage/no-cache-write regression test, and complete-file `prepare` acceptance returned correct bytes where applicable. Recipe validation rejects gaps, overlaps, overflow, malformed chunk lengths, and uncovered ranges; transparent client integration remains. |
 | M5 — Verification and demonstration | DONE | Owner-approved clean-checkout verification, supported-host libFuzzer execution, representative format fixtures, bounded cancellation/backpressure and malicious-peer fixtures, combined HTTPS fallback-to-live-DHT second-node discovery, and independent-process LAN transfer evidence. Transparent proxy rewriting remains deferred scope. |
+| M6 — Tauri daemon and control plane | IN_PROGRESS | M6-01 through M6-03 are complete. M6-04 has a build-verified Tauri v2 shell and static control UI; Windows native rendering, release launch, and browser-level UI readback are verified. M6-05 NSIS install/launch/upgrade/uninstall passes; tray menu and close-to-tray implementations compile and package, but targeted tray interaction and Linux acceptance remain. |
 
 ## Definition of Done
 
@@ -104,6 +105,16 @@ A task is complete only when:
 | M5-05 | P0 | Write clean-checkout two-node demo instructions. | M5-01–M5-04 | A new contributor can reproduce the demo. |
 | M5-06 | P0 | Perform owner/adversary review against `SPEC.md`. | All P0 tasks | Owner-approved acceptance evidence is recorded; known limitations are documented before MVP closure. |
 
+## M6 — Tauri daemon and control plane
+
+| ID | Priority | Task | Dependencies | Acceptance |
+|---|---:|---|---|---|
+| M6-01 | P1 | Create the `ts-daemon` crate with a local authenticated control surface. | M2, M3, M4 | Public health succeeds; `/v1/status` rejects missing or invalid bearer tokens and returns a bounded JSON status for a valid token. |
+| M6-02 | P1 | Move long-running P2P and proxy ownership into `ts-daemon`. | M6-01 | DONE — independent process acceptance verifies authenticated status, owned proxy health, clean shutdown, and control/proxy port release. |
+| M6-03 | P1 | Expose model inventory, verification, preparation, cache repair, transfer, peer, and metric operations. | M6-02 | DONE — independent process acceptance covers all operations, including successful daemon-to-daemon transfer and hash-verified CAS persistence. |
+| M6-04 | P1 | Add the minimal Tauri shell over the daemon control API. | M6-03 | IN_PROGRESS — Tauri v2 shell now provides a qBittorrent-inspired overview, model library/search/detail, transfer metrics, peer/source view, settings, cache repair, preparation actions, and live daemon status. Native window rendering and populated fixture readback pass; production daemon live-data readback remains. |
+| M6-05 | P1 | Package and acceptance-test Windows/Linux desktop installs. | M6-04 | IN_PROGRESS — Windows release MSI and NSIS bundles build; NSIS install, launch, upgrade, and uninstall pass; tray menu and close-to-tray implementations compile and package, but targeted tray interaction and Linux packaging remain. |
+
 ## Deferred Backlog
 
 - `P2` NAT traversal with AutoNAT, DCUtR, and Relay v2.
@@ -116,9 +127,10 @@ A task is complete only when:
 - `P1` transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting; intentionally deferred because MVP clients configure the explicit localhost proxy URL.
 - `P2` browser/WebRTC nodes.
 - `P2` telemetry-resistant and privacy-preserving DHT operation.
-- `P1` Tauri desktop application backed by a long-running local Rust daemon:
-  shared control API, model library, transfer controls, peer/metric status,
-  cache verification/repair, runtime proxy settings, packaging, tray operation,
-  and Windows/Linux clean-install acceptance. Tauri is preferred over Electron
-  because the core is already Rust-based; the UI must not duplicate P2P or
-  content-addressed storage logic.
+- `P1` Remaining Tauri desktop work after M6-01: daemon runtime ownership,
+  shared control operations, model library, transfer controls, peer/metric
+  status, cache verification/repair, runtime proxy settings, packaging, tray
+  interaction, native live-data readback, and Linux clean-install acceptance.
+  Windows NSIS install/upgrade/uninstall is accepted. Tauri is preferred
+  over Electron because the core is already Rust-based; the UI must not
+  duplicate P2P or content-addressed storage logic.

@@ -4,11 +4,16 @@ TensorSwarm is an experimental, tensor-native P2P distribution engine for GGUF a
 
 ## MVP status
 
-The project is currently at the foundation stage. The roadmap targets a local end-to-end vertical slice:
+The local end-to-end MVP is accepted with limitations. The implemented vertical slice is:
 
 ```text
 parse -> manifest -> verified cache -> LAN transfer -> HTTP/WebSeed proxy
 ```
+
+M0 through M3 and M5 are complete. M4's explicit localhost proxy, LAN fetch,
+HTTPS WebSeed fallback, complete-file preparation, and verification paths are
+implemented and tested. Transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is
+deferred as post-MVP work.
 
 See [PLAN.md](PLAN.md) for milestones and [TASKS.md](TASKS.md) for the executable task board.
 See [docs/demo.md](docs/demo.md) for clean-checkout two-node demonstration steps.
@@ -67,8 +72,14 @@ cargo test --workspace
 
 Do not call the MVP complete until the owner/adversary verification tasks in `TASKS.md` have passed.
 
+## Agents Protocol integration
+
+This application adopts the project-shaped Agents Protocol spine for grounding, MCP intent routing, isolated parallel work, and independent acceptance. Start with [AGENTS.md](AGENTS.md) and [BOOTSTRAP.md](BOOTSTRAP.md); machine-local discovery belongs in ignored `MCP.local.md`.
+
 ## Documentation spine
 
+- [AGENTS.md](AGENTS.md) — agent behavior and Verification Ladder
+- [MCP.md](MCP.md) — intent-to-tool routing
 - [CONTEXT.md](CONTEXT.md) — project context and constraints
 - [SPEC.md](SPEC.md) — externally observable MVP contract
 - [ARCHITECTURE.md](ARCHITECTURE.md) — component boundaries and data flow
