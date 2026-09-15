@@ -1,7 +1,7 @@
 //! Local control surface for the long-running TensorSwarm runtime.
 
 use axum::extract::State;
-use axum::http::{header, HeaderValue, Method, Request, StatusCode};
+use axum::http::{header, Method, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -178,11 +178,16 @@ struct TransferPayload {
 
 pub fn router(state: DaemonState) -> Router {
     let cors = CorsLayer::new()
-        .allow_origin([
-            HeaderValue::from_static("tauri://localhost"),
-            HeaderValue::from_static("http://tauri.localhost"),
-            HeaderValue::from_static("https://tauri.localhost"),
-        ])
+        .allow_origin(tower_http::cors::AllowOrigin::predicate(|origin, _| {
+            let bytes = origin.as_bytes();
+            bytes.starts_with(b"http://127.0.0.1")
+                || bytes.starts_with(b"http://localhost")
+                || bytes.starts_with(b"https://127.0.0.1")
+                || bytes.starts_with(b"https://localhost")
+                || bytes.starts_with(b"tauri://")
+                || bytes.starts_with(b"http://tauri.localhost")
+                || bytes.starts_with(b"https://tauri.localhost")
+        }))
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
 
@@ -416,7 +421,7 @@ async fn authenticate(
     request: Request<axum::body::Body>,
     next: Next,
 ) -> Response {
-    if request.uri().path() == "/healthz" {
+    if request.method() == Method::OPTIONS || request.uri().path() == "/healthz" {
         return next.run(request).await;
     }
     let authorized = request
