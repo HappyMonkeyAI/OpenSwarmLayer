@@ -3,7 +3,7 @@
 Last updated: 2026-09-15
 Branch: master
 Working tree: clean except for the pre-existing untracked reference screenshot
-HEAD: 9f62701 docs: record Deepin desktop acceptance
+HEAD: 5efa5b6 docs: record tray acceptance gap
 
 ## Completed this session
 
@@ -64,9 +64,12 @@ HEAD: 9f62701 docs: record Deepin desktop acceptance
 - Probed the available Deepin 25 notebook at `Stephen@192.168.5.68` over read-only SSH: the host is x86_64 with an active Xorg session, Git 2.51.0, and Node 20.15.1. No checkout or Cargo/Tauri toolchain is present yet, and passwordless sudo is unavailable; the notebook is a viable next host for native Linux GUI and install/readback acceptance after user-approved setup.
 - User-confirmed native desktop acceptance on the Deepin 25 notebook: the OpenSwarmLayer app worked on the Linux desktop. This confirms GUI launch/use at a high level; package install/readback and daemon live-data verification remain separately unrecorded.
 - Completed native Deepin verification from the pushed `master` checkout: `cargo check --workspace` passed, the Tauri DEB bundle was produced, the desktop executable launched under the real Xorg session and terminated cleanly, and `cargo test -p ts-daemon -- --test-threads=1` passed (3 unit tests plus 2 process-acceptance tests). DEB install/remove through `dpkg` remains open because the notebook requires interactive sudo authentication.
+- Retested the Windows release executable's native Close control against the actual `ts-desktop.exe` PID: the window and process exited, so close-to-tray remains unaccepted. The result is recorded as an acceptance gap rather than treated as evidence of tray persistence.
 
 ## Recent commits
 
+- `5efa5b6` — Record tray acceptance gap
+- `abd346f` — Record Deepin native verification
 - `03bfccc` — Record Deepin Linux verification host
 - `4e3caae` — Verify Linux desktop packaging
 - `e7c012c` — Verify delayed peer cancellation
