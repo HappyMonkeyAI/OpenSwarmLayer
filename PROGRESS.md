@@ -2,8 +2,8 @@
 
 Last updated: 2026-09-15
 Branch: master
-Working tree: clean except for the pre-existing untracked reference screenshot
-HEAD: 5efa5b6 docs: record tray acceptance gap
+Working tree: untracked acceptance scripts present; no tracked changes
+HEAD: 1af5518 docs: record Deepin daemon setup progress
 
 ## Completed this session
 
@@ -65,9 +65,15 @@ HEAD: 5efa5b6 docs: record tray acceptance gap
 - User-confirmed native desktop acceptance on the Deepin 25 notebook: the OpenSwarmLayer app worked on the Linux desktop. This confirms GUI launch/use at a high level; package install/readback and daemon live-data verification remain separately unrecorded.
 - Completed native Deepin verification from the pushed `master` checkout: `cargo check --workspace` passed, the Tauri DEB bundle was produced, the desktop executable launched under the real Xorg session and terminated cleanly, and `cargo test -p ts-daemon -- --test-threads=1` passed (3 unit tests plus 2 process-acceptance tests). DEB install/remove through `dpkg` remains open because the notebook requires interactive sudo authentication.
 - Retested the Windows release executable's native Close control against the actual `ts-desktop.exe` PID: the window and process exited, so close-to-tray remains unaccepted. The result is recorded as an acceptance gap rather than treated as evidence of tray persistence.
+- Fast-forwarded the local checkout to remote `master` commit `12825a3`, which adds exact-origin daemon CORS validation and production-daemon live-data acceptance coverage. The remote tip is current locally; the untracked `scripts/` directory is preserved and not included here.
+- Confirmed the Deepin acceptance shell path: the built daemon is at `~/Documents/development/OpenSwarmLayer/target/debug/ts-daemon`, but it is not installed in `PATH`; the DEB acceptance script is paused at `sudo -v`, and `open-swarm-layer` is not installed yet.
+- Confirmed the daemon does not auto-start with the Tauri desktop shell. No `ts-daemon` process or control/proxy listener was present on Deepin; a bearer token exists only when supplied through `TS_DAEMON_AUTH_TOKEN` at daemon launch. A real `.tswarm` manifest and store are still required before manual live-data readback.
+- Recorded a shell portability pitfall from the Deepin command attempt: a continuation backslash must be the final character on its line. Trailing spaces cause each following option to execute as a separate command; a single-line daemon command avoids this failure.
 
 ## Recent commits
 
+- `1af5518` — Record Deepin daemon setup progress
+- `12825a3` — Secure daemon CORS and verify live desktop data
 - `5efa5b6` — Record tray acceptance gap
 - `abd346f` — Record Deepin native verification
 - `03bfccc` — Record Deepin Linux verification host
@@ -120,7 +126,7 @@ Post-MVP limitations and deferred work:
 
 ## Recommended next slice
 
-Use the Deepin notebook to complete native Linux DEB install/remove/readback with interactive sudo, then complete native Windows tray interaction separately. Keep transparent proxy rewriting and the broader P2 backlog deferred.
+On Deepin, finish the sudo-gated DEB install/remove/readback, create or select a real manifest/store fixture, launch `ts-daemon` with an explicit local `TS_DAEMON_AUTH_TOKEN`, and perform live desktop readback through `127.0.0.1:9090`. Then complete native Windows tray interaction separately. Keep transparent proxy rewriting and the broader P2 backlog deferred.
 
 ## Reporting note
 
