@@ -6057,6 +6057,7 @@ dependencies = [
  "ts-p2p",
  "ts-proxy",
  "ts-store",
+ "url",
 ]
 
 [[package]]

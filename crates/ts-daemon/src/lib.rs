@@ -1,7 +1,7 @@
 //! Local control surface for the long-running TensorSwarm runtime.
 
 use axum::extract::State;
-use axum::http::{header, HeaderValue, Method, Request, StatusCode};
+use axum::http::{header, Method, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -176,13 +176,44 @@ struct TransferPayload {
     verified: bool,
 }
 
+fn is_allowed_origin(origin_bytes: &[u8]) -> bool {
+    let Ok(origin_str) = std::str::from_utf8(origin_bytes) else {
+        return false;
+    };
+    let Ok(parsed) = url::Url::parse(origin_str) else {
+        return false;
+    };
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return false;
+    }
+    if parsed.path() != "" && parsed.path() != "/" {
+        return false;
+    }
+    if parsed.query().is_some() || parsed.fragment().is_some() {
+        return false;
+    }
+    match parsed.scheme() {
+        "http" | "https" => {
+            let Some(host) = parsed.host_str() else {
+                return false;
+            };
+            host == "127.0.0.1" || host == "localhost" || host == "tauri.localhost"
+        }
+        "tauri" => {
+            let Some(host) = parsed.host_str() else {
+                return false;
+            };
+            host == "localhost" && parsed.port().is_none()
+        }
+        _ => false,
+    }
+}
+
 pub fn router(state: DaemonState) -> Router {
     let cors = CorsLayer::new()
-        .allow_origin([
-            HeaderValue::from_static("tauri://localhost"),
-            HeaderValue::from_static("http://tauri.localhost"),
-            HeaderValue::from_static("https://tauri.localhost"),
-        ])
+        .allow_origin(tower_http::cors::AllowOrigin::predicate(|origin, _| {
+            is_allowed_origin(origin.as_bytes())
+        }))
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
 
@@ -416,7 +447,7 @@ async fn authenticate(
     request: Request<axum::body::Body>,
     next: Next,
 ) -> Response {
-    if request.uri().path() == "/healthz" {
+    if request.method() == Method::OPTIONS || request.uri().path() == "/healthz" {
         return next.run(request).await;
     }
     let authorized = request
@@ -506,6 +537,30 @@ mod tests {
         let body = String::from_utf8(body.to_vec()).unwrap();
         assert!(body.contains("\"p2p\":\"running\""));
         assert!(body.contains("\"proxy\":\"running\""));
+    }
+
+    #[test]
+    fn allows_valid_local_origins_and_rejects_lookalikes() {
+        assert!(is_allowed_origin(b"http://127.0.0.1:8080"));
+        assert!(is_allowed_origin(b"http://localhost:3000"));
+        assert!(is_allowed_origin(b"https://127.0.0.1"));
+        assert!(is_allowed_origin(b"https://localhost"));
+        assert!(is_allowed_origin(b"tauri://localhost"));
+        assert!(is_allowed_origin(b"http://tauri.localhost"));
+        assert!(is_allowed_origin(b"https://tauri.localhost"));
+
+        // Hostile lookalike origins MUST be rejected
+        assert!(!is_allowed_origin(b"http://localhost.evil.example"));
+        assert!(!is_allowed_origin(b"http://127.0.0.1.evil.example"));
+        assert!(!is_allowed_origin(b"http://tauri.localhost.evil.example"));
+        assert!(!is_allowed_origin(b"http://localhost@evil.example"));
+        assert!(!is_allowed_origin(b"http://127.0.0.1@evil.example"));
+        assert!(!is_allowed_origin(b"http://user:pass@localhost"));
+        assert!(!is_allowed_origin(b"tauri://evil.example"));
+        assert!(!is_allowed_origin(b"http://evil.example/127.0.0.1"));
+        assert!(!is_allowed_origin(b"http://localhost/path"));
+        assert!(!is_allowed_origin(b"http://localhost?query"));
+        assert!(!is_allowed_origin(b"not-a-url"));
     }
 
     #[tokio::test]

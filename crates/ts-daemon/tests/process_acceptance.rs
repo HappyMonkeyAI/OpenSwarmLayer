@@ -76,12 +76,56 @@ async fn daemon_process_owns_control_and_proxy_until_shutdown() {
         })
         .await
         .expect("daemon control endpoint did not start");
-        let unauthorized = client
+        // Verify authentication failure path across control endpoints
+        for endpoint in [
+            "/v1/status",
+            "/v1/models",
+            "/v1/verification",
+            "/v1/peers",
+            "/v1/metrics",
+            "/v1/settings",
+        ] {
+            let res = client
+                .get(format!("{control_url}{endpoint}"))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(res.status(), reqwest::StatusCode::UNAUTHORIZED);
+            let bad_auth = client
+                .get(format!("{control_url}{endpoint}"))
+                .bearer_auth("wrong-token")
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(bad_auth.status(), reqwest::StatusCode::UNAUTHORIZED);
+        }
+        for endpoint in ["/v1/prepare", "/v1/cache/repair", "/v1/transfers"] {
+            let res = client
+                .post(format!("{control_url}{endpoint}"))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(res.status(), reqwest::StatusCode::UNAUTHORIZED);
+        }
+
+        // Verify CORS negotiation for desktop and local web origins
+        let cors_res = client
             .get(format!("{control_url}/v1/status"))
+            .header("Origin", "http://127.0.0.1:8080")
+            .bearer_auth("acceptance-token")
             .send()
             .await
             .unwrap();
-        assert_eq!(unauthorized.status(), reqwest::StatusCode::UNAUTHORIZED);
+        assert_eq!(cors_res.status(), reqwest::StatusCode::OK);
+        assert_eq!(
+            cors_res
+                .headers()
+                .get("Access-Control-Allow-Origin")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "http://127.0.0.1:8080"
+        );
         let malformed_transfer = client
             .post(format!("{control_url}/v1/transfers"))
             .bearer_auth("acceptance-token")
