@@ -3,7 +3,7 @@
 Last updated: 2026-09-15
 Branch: master
 Working tree: clean except for the pre-existing untracked reference screenshot
-HEAD: 03bfccc docs: record Deepin Linux verification host
+HEAD: 9f62701 docs: record Deepin desktop acceptance
 
 ## Completed this session
 
@@ -63,6 +63,7 @@ HEAD: 03bfccc docs: record Deepin Linux verification host
 - Committed the Linux packaging verification slice as `4e3caae` and pushed it to `origin/master`; the remote branch SHA was read back and matched the local commit.
 - Probed the available Deepin 25 notebook at `Stephen@192.168.5.68` over read-only SSH: the host is x86_64 with an active Xorg session, Git 2.51.0, and Node 20.15.1. No checkout or Cargo/Tauri toolchain is present yet, and passwordless sudo is unavailable; the notebook is a viable next host for native Linux GUI and install/readback acceptance after user-approved setup.
 - User-confirmed native desktop acceptance on the Deepin 25 notebook: the OpenSwarmLayer app worked on the Linux desktop. This confirms GUI launch/use at a high level; package install/readback and daemon live-data verification remain separately unrecorded.
+- Completed native Deepin verification from the pushed `master` checkout: `cargo check --workspace` passed, the Tauri DEB bundle was produced, the desktop executable launched under the real Xorg session and terminated cleanly, and `cargo test -p ts-daemon -- --test-threads=1` passed (3 unit tests plus 2 process-acceptance tests). DEB install/remove through `dpkg` remains open because the notebook requires interactive sudo authentication.
 
 ## Recent commits
 
@@ -116,7 +117,7 @@ Post-MVP limitations and deferred work:
 
 ## Recommended next slice
 
-Use the Deepin notebook to complete native Linux package installation/readback and daemon live-data acceptance, then complete native Windows tray interaction separately. Keep transparent proxy rewriting and the broader P2 backlog deferred.
+Use the Deepin notebook to complete native Linux DEB install/remove/readback with interactive sudo, then complete native Windows tray interaction separately. Keep transparent proxy rewriting and the broader P2 backlog deferred.
 
 ## Reporting note
 
