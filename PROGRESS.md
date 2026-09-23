@@ -208,8 +208,20 @@ deferred.
   established, record this as installed-app launch/API smoke, not clean-install
   acceptance.
 - The CUA driver still blocks native-window capture/interaction. Rendered UI
-  state, deliberate engine-bind failure recovery, and graceful tray Quit remain
-  unverified; no claim of M6-06 acceptance.
+  state, in-app failure recovery, and graceful tray Quit remain unverified; no
+  claim of M6-06 acceptance.
+
+## Engine bind-conflict and reopen recovery — 2026-09-23
+
+- Held the desktop control port (`127.0.0.1:9090`) with a test-owned TCP
+  listener and launched the installed app. The desktop process remained alive;
+  the engine endpoint did not become available.
+- Released the test listener, closed the app, and relaunched it. The engine
+  recovered with `/healthz` HTTP 200 and unauthenticated `/v1/status` HTTP 401;
+  after app exit, `/healthz` returned HTTP 000.
+- This verifies process-level recovery by reopening after a bind conflict, not
+  an in-app restart or rendered error-state flow. Native error-state readback
+  and explicit tray Quit remain unverified.
 
 ## Reporting note
 
