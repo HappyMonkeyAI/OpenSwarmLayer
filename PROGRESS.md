@@ -195,6 +195,22 @@ deferred.
 - This proves release-binary engine startup/auth boundary/process termination,
   not NSIS install-launch-uninstall or visual UI acceptance. Those remain open.
 
+## Packaged per-user launch readback — 2026-09-23
+
+- Invoked the built NSIS setup (`OpenSwarmLayer_0.1.1_x64-setup.exe`) in silent
+  mode, then read the registered per-user install location from the Windows
+  uninstall registry key. The executable is `ts-desktop.exe` under
+  `%LOCALAPPDATA%\OpenSwarmLayer`.
+- Launched that packaged executable and observed `/healthz` HTTP 200,
+  unauthenticated `/v1/status` HTTP 401, and HTTP 000 after stopping the app
+  process. The installer invocation targeted a custom path but NSIS retained
+  its registered per-user default; because a clean isolated install was not
+  established, record this as installed-app launch/API smoke, not clean-install
+  acceptance.
+- The CUA driver still blocks native-window capture/interaction. Rendered UI
+  state, deliberate engine-bind failure recovery, and graceful tray Quit remain
+  unverified; no claim of M6-06 acceptance.
+
 ## Reporting note
 
 The LAN announcement daemon at `192.168.5.229:4100` was unreachable during the final
