@@ -183,6 +183,18 @@ deferred.
   app-owned authenticated response, packaged install, close/tray behavior,
   startup-failure recovery, and graceful Quit remain unverified.
 
+## Packaged release engine smoke — 2026-09-23
+
+- Built the Windows release NSIS bundle with
+  `cargo tauri build --bundles nsis --no-sign` from `desktop/src-tauri`; output:
+  `target/release/bundle/nsis/OpenSwarmLayer_0.1.1_x64-setup.exe`.
+- Launched the release executable (not only the debug build). Its local
+  `/healthz` returned HTTP 200 and protected `/v1/status` returned HTTP 401
+  without a bearer token. Stopping the release process tree caused the health
+  endpoint to become unavailable (HTTP 000).
+- This proves release-binary engine startup/auth boundary/process termination,
+  not NSIS install-launch-uninstall or visual UI acceptance. Those remain open.
+
 ## Reporting note
 
 The LAN announcement daemon at `192.168.5.229:4100` was unreachable during the final
