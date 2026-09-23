@@ -39,10 +39,11 @@ Objects are stored by content hash. Materialized files and resumable state are d
 
 The MVP is LAN-first: authenticated libp2p connections, mDNS discovery, and a small request/response protocol. NAT traversal, public relays, and WebRTC are later layers.
 
-## Desktop direction
+## Desktop runtime
 
-The planned cross-platform desktop application uses Tauri and a long-running
-local Rust daemon. Tauri is a client shell, not a second networking runtime:
+The Tauri desktop application starts and supervises the local Rust engine as
+part of the application lifecycle. Tauri does not implement a second networking
+runtime; the UI uses the existing authenticated daemon API:
 
 ```text
 Tauri UI
@@ -59,12 +60,16 @@ activity, peer/source discovery, and runtime settings/cache maintenance. The UI
 uses the existing authenticated control API and deliberately labels scheduler
 features that are not yet exposed by the daemon instead of simulating them.
 
-The daemon must also support headless CLI/server operation. The control API
-will expose inventory, transfer control, peer and metric status, verification,
-cache repair, preparation, and proxy/runtime settings. Local authentication
-and origin boundaries are required before UI control operations are enabled.
+At startup, the desktop shell creates an app-data cache, generates a
+per-session bearer token, and starts `ts-daemon` on loopback control/proxy
+listeners (`127.0.0.1:9090` and `127.0.0.1:9091`). The main window can hide to
+the tray without stopping the engine; explicit tray Quit is intended to exit
+the app and runtime. Its live graceful-shutdown acceptance remains open.
 
-The initial daemon slice provides a public `/healthz` probe and an authenticated
-`/v1/status` endpoint. P2P and proxy runtime ownership remain the next daemon
-integration step; the status response reports those components as not started
-until they are wired into the long-running process.
+The daemon also supports headless CLI/server operation. The authenticated
+control API exposes inventory, transfer, peer and metric status, verification,
+cache repair, preparation, and proxy/runtime operations. Keep local
+authentication and origin boundaries intact. The engine currently supports an
+empty library when no manifest is configured, allowing first launch to reach a
+usable desktop state. Model import and sharing through the UI remain future
+work; see `TASKS.md` for milestone status.

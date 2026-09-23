@@ -242,6 +242,23 @@ deferred.
   desktop acceptance are verified. This is UI/release evidence, not a claim of
   full M6-06 completion or clean-install acceptance.
 
+## Tray Quit acceptance attempt and handoff — 2026-09-23
+
+- Launched the current debug desktop app and confirmed the overview rendered.
+  Closing its main window hid the app as designed; the engine stayed alive
+  until the test process tree was stopped.
+- Tried to reach the Windows notification area to select the tray `Quit` item.
+  The desktop automation target remained the file-manager/remote-desktop
+  surface; attempts to target the full-screen or taskbar surface were rejected
+  or produced no verified state change. No tray menu item was selected, so
+  graceful tray Quit is still unverified.
+- Stopped the test-owned process tree and read back `/healthz` HTTP 000; no
+  `ts-desktop` test process remained. The prior foreground ZeroG terminal was
+  restored after the desktop inspection.
+- No source changes were made for this acceptance attempt. Continue M6-06 only
+  when the Windows taskbar/notification area is addressable; separately keep
+  native Linux graphical acceptance and M6-07 model import/sharing open.
+
 ## Reporting note
 
 The LAN announcement daemon at `192.168.5.229:4100` was unreachable during the final

@@ -8,11 +8,16 @@ TensorSwarm is an open-source, tensor-native distribution engine for GGUF and Sa
 
 The local end-to-end MVP is accepted with limitations. M0 through M3 and M5
 are complete; M4's proxy, LAN, WebSeed, materialization, and verification paths
-are implemented and tested. The post-MVP M6 daemon/control-plane track now has
-an authenticated `ts-daemon`, a Tauri v2 shell, Windows MSI/NSIS artifacts, and
-verified NSIS install/upgrade/uninstall coverage. Transparent
-`HTTP_PROXY`/`HTTPS_PROXY` rewriting remains intentionally deferred as post-MVP
-work. Linux packaging is not yet verified.
+are implemented and tested. The post-MVP M6 track has an authenticated
+`ts-daemon` and a Tauri v2 shell that starts the Rust engine automatically on
+desktop launch, uses an app-data cache and per-session token, and exposes a
+visible retry path after startup failure. Windows release/API and NSIS build
+smokes pass; Linux DEB/RPM/AppImage artifacts build and DEB install/remove has
+been exercised in WSL, but native Linux graphical acceptance is incomplete.
+In-app engine recovery and close-to-background behavior have live Windows UI
+evidence; explicit tray Quit remains unverified. Model import/sharing is still
+in progress. Transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting remains deferred
+as post-MVP work. See `TASKS.md` and `PROGRESS.md` for acceptance boundaries.
 
 ## Agents Protocol adoption
 

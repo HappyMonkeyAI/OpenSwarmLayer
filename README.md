@@ -15,6 +15,18 @@ HTTPS WebSeed fallback, complete-file preparation, and verification paths are
 implemented and tested. Transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is
 deferred as post-MVP work.
 
+## Desktop application status
+
+The Windows Tauri desktop app starts the local Rust engine automatically; users
+do not need to start a daemon in a terminal. The engine exposes its authenticated
+control API on loopback port 9090 and its model proxy on port 9091, and stores its
+cache under the application data directory. Closing the main window hides the
+app; the tray menu provides Show and Quit actions. The overview and local-engine
+retry flow are implemented, while model import/sharing and full cross-platform
+desktop acceptance remain in progress. See [TASKS.md](TASKS.md) and
+[PROGRESS.md](PROGRESS.md) for evidence and open acceptance gates. Headless
+`ts-daemon` and `ts-cli` workflows remain available for server/operator use.
+
 See [PLAN.md](PLAN.md) for milestones and [TASKS.md](TASKS.md) for the executable task board.
 See [docs/demo.md](docs/demo.md) for clean-checkout two-node demonstration steps.
 See [docs/benchmarks.md](docs/benchmarks.md) for the measured primitive benchmark snapshot.
