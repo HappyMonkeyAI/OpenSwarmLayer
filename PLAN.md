@@ -145,14 +145,18 @@ Before calling the proxy complete, bytes served through swarm and HTTPS fallback
 
 ## Post-MVP Direction
 
-After M5, split work into independent tracks:
+After M5, prioritize an approachable desktop sharing client before expanding
+network topology or advanced model features:
 
-1. Secure publisher signatures and repository lineage.
-2. NAT traversal and relay deployment.
-3. Layer-aware prefetch and runtime preparation APIs.
-4. Multi-file repository manifests and sharded model support.
-5. Dynamic quantization research as an optional compute marketplace.
-6. Tauri desktop application backed by a long-running local Rust daemon.
+1. Finish the desktop-owned engine lifecycle and platform acceptance.
+2. Deliver the end-user model import, verify, publish/seed, and transfer flow.
+3. Add multi-file repository manifests and sharded model support.
+4. Add publisher signatures and trusted repository lineage before relying on
+   publisher identity as a trust signal.
+5. Add NAT traversal and relay deployment when there is a concrete cross-LAN
+   use case and operational plan.
+6. Explore layer-aware prefetch/runtime APIs and dynamic quantization as later,
+   separately scoped tracks.
 
 ### Desktop application direction
 
@@ -160,6 +164,13 @@ The preferred desktop shell is Tauri rather than Electron because the project
 already has a Rust networking, storage, format, and proxy core. The desktop
 application must remain a client of that core and must not duplicate P2P or
 content-addressed storage logic.
+
+The standard desktop install must behave like a conventional torrent client:
+the user launches the desktop application, and the application starts,
+supervises, and connects to its local transfer engine. Starting a daemon from a
+terminal or installing an OS service is not a prerequisite. Keep headless
+`ts-daemon` operation available as an optional server/operator mode. The daemon
+is an implementation boundary, not a required end-user workflow.
 
 The desktop track should be delivered in this order:
 
@@ -169,11 +180,21 @@ The desktop track should be delivered in this order:
    peer/metric status, verification, cache repair, and complete-file prepare.
 3. Add local authentication and explicit origin/permission boundaries before
    exposing control operations to a UI.
-4. Build a minimal Tauri shell with a model library, transfer progress, peer
-   status, cache controls, and runtime/proxy settings.
-5. Add packaging, updater, tray/background operation, notifications, and
-   clean-install acceptance for Windows and Linux.
+4. Make Tauri own daemon launch, readiness, health, restart/error handling, and
+   clean shutdown. Background/tray persistence must be an explicit user
+   preference with visible running state; ordinary close/exit behavior must be
+   documented and tested per platform.
+5. Build the model-sharing workflow: import a model file/folder, inspect and
+   verify it, create/share its manifest, seed it, and show transfer/peer
+   activity. Use daemon APIs; do not duplicate store or P2P logic in the UI.
+6. Add library/search, transfer controls, cache/destination and bandwidth
+   settings, notifications, and honest empty/error/recovery states.
+7. Package and acceptance-test clean install, first launch, engine startup,
+   sharing a fixture, restart/reopen, optional background operation, engine
+   failure recovery, and uninstall on Windows and Linux.
 
 The CLI, future web dashboard, and Tauri UI should consume the same daemon
 control surface. The daemon must remain usable without the desktop shell for
-headless and server deployments.
+headless and server deployments. Tauri sidecar packaging is a candidate
+implementation for desktop-owned lifecycle, not an architectural requirement;
+evaluate process supervision and packaging constraints before choosing it.

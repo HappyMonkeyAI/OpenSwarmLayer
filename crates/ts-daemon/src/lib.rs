@@ -91,7 +91,7 @@ impl DaemonState {
 pub struct RuntimeConfig {
     pub control_bind: String,
     pub proxy_bind: String,
-    pub manifest_path: PathBuf,
+    pub manifest_path: Option<PathBuf>,
     pub store_root: PathBuf,
     pub origin_url: String,
     pub auth_token: String,
@@ -411,7 +411,15 @@ fn invalid_request(error: impl std::fmt::Display) -> (StatusCode, String) {
 /// The daemon validates the manifest and store before binding the control API,
 /// so a bad runtime configuration cannot present a healthy control surface.
 pub async fn serve_runtime(config: RuntimeConfig) -> anyhow::Result<()> {
-    let manifest: ts_core::Manifest = serde_cbor::from_slice(&fs::read(&config.manifest_path)?)?;
+    let manifest: ts_core::Manifest = match &config.manifest_path {
+        Some(path) => serde_cbor::from_slice(&fs::read(path)?)?,
+        None => ts_core::Manifest::new(
+            ts_core::ArtifactFormat::Safetensors,
+            0,
+            Vec::new(),
+            Vec::new(),
+        ),
+    };
     anyhow::ensure!(manifest.verify_root(), "manifest self-check failed");
     let store = ts_store::ObjectStore::open(&config.store_root)?;
     let provider = ts_p2p::ChunkProvider::from_manifest(&store, &manifest)?;

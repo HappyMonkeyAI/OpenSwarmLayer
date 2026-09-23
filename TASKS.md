@@ -114,6 +114,9 @@ A task is complete only when:
 | M6-03 | P1 | Expose model inventory, verification, preparation, cache repair, transfer, peer, and metric operations. | M6-02 | DONE — independent process acceptance covers all operations, including successful daemon-to-daemon transfer and hash-verified CAS persistence. |
 | M6-04 | P1 | Add the minimal Tauri shell over the daemon control API. | M6-03 | IN_PROGRESS — Tauri v2 shell now provides a qBittorrent-inspired overview, model library/search/detail, transfer metrics, peer/source view, settings, cache repair, preparation actions, and live daemon status. Native window rendering and populated fixture readback pass; exact-origin CORS and production-daemon live-data acceptance coverage are merged, while Deepin manual daemon launch/readback remains pending a real manifest/store fixture and local bearer token. |
 | M6-05 | P1 | Package and acceptance-test Windows/Linux desktop installs. | M6-04 | IN_PROGRESS — Windows release MSI and NSIS install/launch/upgrade/uninstall pass; Linux DEB, RPM, and AppImage bundles build, and DEB install/remove passes in WSL. Deepin native build, Xorg GUI launch, and daemon unit/process acceptance pass; the DEB script is currently sudo-gated before installation, manual live-daemon readback still needs a real fixture/token, and targeted Windows tray interaction remains. |
+| M6-06 | P1 | Make the desktop application own the local engine lifecycle. | M6-03, M6-04 | IN_PROGRESS — Tauri now embeds and starts the Rust engine on launch, creates an app-data cache and per-session UUID bearer token, and the UI obtains its connection details automatically and waits for readiness. A live Windows launch returned `/healthz` 200 and unauthenticated `/v1/status` 401; stopping the app process released the control port. Still required: packaged launch/install acceptance, visible UI state/readback, startup-failure recovery, and graceful Quit/tray lifecycle acceptance. Headless daemon use remains optional. |
+| M6-07 | P1 | Deliver the end-user model sharing flow. | M6-03, M6-06 | TODO — user can import a model file/folder, inspect and verify it, create a shareable manifest, seed/share it, and observe transfer/peer state through the UI; invalid input and incomplete/error states are actionable and never presented as successfully shared. |
+| M6-08 | P1 | Verify desktop lifecycle and sharing in packaged Windows/Linux installs. | M6-05–M6-07 | TODO — clean install/first launch, engine startup, fixture sharing, restart/reopen, optional background mode, engine failure recovery, and uninstall are exercised with state readback on each supported platform. |
 
 ## Deferred Backlog
 
@@ -127,11 +130,8 @@ A task is complete only when:
 - `P1` transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting; intentionally deferred because MVP clients configure the explicit localhost proxy URL.
 - `P2` browser/WebRTC nodes.
 - `P2` telemetry-resistant and privacy-preserving DHT operation.
-- `P1` Remaining Tauri desktop work after M6-01: daemon runtime ownership,
-  shared control operations, model library, transfer controls, peer/metric
-  status, cache verification/repair, runtime proxy settings, packaging, tray
-  interaction, native live-data readback, and Linux clean-install acceptance on
-  the Deepin verification notebook.
-  Windows NSIS install/upgrade/uninstall is accepted. Tauri is preferred
-  over Electron because the core is already Rust-based; the UI must not
-  duplicate P2P or content-addressed storage logic.
+- `P1` Desktop-owned engine lifecycle (M6-06), end-user model sharing workflow
+  (M6-07), and packaged cross-platform lifecycle acceptance (M6-08). Users of
+  the standard desktop install must not need to start a daemon in a terminal or
+  install an OS service. Headless daemon operation remains supported as an
+  optional server/operator path. The UI must not duplicate P2P or storage logic.

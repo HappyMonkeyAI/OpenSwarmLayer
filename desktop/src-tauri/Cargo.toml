@@ -9,6 +9,9 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
+serde.workspace = true
+ts-daemon = { path = "../../crates/ts-daemon" }
+uuid = { version = "1", features = ["v4"] }
 
 [features]
 default = ["custom-protocol"]

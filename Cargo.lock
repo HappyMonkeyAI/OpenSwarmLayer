@@ -6064,8 +6064,11 @@ dependencies = [
 name = "ts-desktop"
 version = "0.1.1"
 dependencies = [
+ "serde",
  "tauri",
  "tauri-build",
+ "ts-daemon",
+ "uuid",
 ]
 
 [[package]]

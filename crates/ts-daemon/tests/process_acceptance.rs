@@ -10,6 +10,77 @@ fn free_address() -> String {
     listener.local_addr().unwrap().to_string()
 }
 
+struct ChildGuard(std::process::Child);
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+#[tokio::test]
+async fn daemon_starts_without_a_manifest_for_an_empty_desktop_library() {
+    let root = tempfile::tempdir().unwrap();
+    let control_bind = free_address();
+    let proxy_bind = free_address();
+    let child = ChildGuard(
+        std::process::Command::new(env!("CARGO_BIN_EXE_ts-daemon"))
+            .args([
+                "--control-bind",
+                &control_bind,
+                "--proxy-bind",
+                &proxy_bind,
+                "--store",
+                root.path().to_str().unwrap(),
+            ])
+            .env("TS_DAEMON_AUTH_TOKEN", "empty-library-token")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
+
+    let client = reqwest::Client::new();
+    let control_url = format!("http://{control_bind}");
+    let result = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if client
+                .get(format!("{control_url}/healthz"))
+                .send()
+                .await
+                .is_ok()
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await;
+    if result.is_ok() {
+        let status = client
+            .get(format!("{control_url}/v1/status"))
+            .bearer_auth("empty-library-token")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(status.status(), reqwest::StatusCode::OK);
+        let models = client
+            .get(format!("{control_url}/v1/models"))
+            .bearer_auth("empty-library-token")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(models.status(), reqwest::StatusCode::OK);
+        assert_eq!(
+            models.json::<serde_json::Value>().await.unwrap(),
+            serde_json::json!([])
+        );
+    }
+    drop(child);
+    result.expect("daemon without a manifest did not become healthy");
+}
+
 #[tokio::test]
 async fn daemon_process_owns_control_and_proxy_until_shutdown() {
     use futures::FutureExt;

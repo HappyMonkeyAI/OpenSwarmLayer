@@ -126,7 +126,62 @@ Post-MVP limitations and deferred work:
 
 ## Recommended next slice
 
-On Deepin, finish the sudo-gated DEB install/remove/readback, create or select a real manifest/store fixture, launch `ts-daemon` with an explicit local `TS_DAEMON_AUTH_TOKEN`, and perform live desktop readback through `127.0.0.1:9090`. Then complete native Windows tray interaction separately. Keep transparent proxy rewriting and the broader P2 backlog deferred.
+Implement M6-06: Tauri-owned local engine lifecycle. A normal desktop user
+must not manually launch `ts-daemon` or install an OS service. First determine
+the packaged runtime location and supported CLI/config contract, then add
+app-owned startup/readiness/authentication/shutdown with failure readback.
+Keep headless daemon use as an optional operator path. Follow with M6-07's
+model import/verify/manifest/share/seed workflow and M6-08 packaged acceptance.
+The earlier manual Deepin daemon readback remains a platform acceptance gap,
+but should be resolved through the new app-owned flow rather than preserved as
+a required end-user procedure. Keep proxy rewriting and broader P2 features
+deferred.
+
+## Product direction update — 2026-09-23
+
+- Reframed M6 around the desktop app supervising its local Rust engine, like a
+  conventional desktop transfer client; terminal-started daemon/service setup
+  is no longer the expected desktop workflow.
+- Kept standalone/headless `ts-daemon` as an optional server/operator mode.
+- Added M6-06 lifecycle, M6-07 user-facing model sharing, and M6-08 packaged
+  Windows/Linux lifecycle acceptance to `TASKS.md`; updated the post-MVP order
+  in `PLAN.md`.
+- No implementation/runtime acceptance was performed in this documentation
+  slice. Windows close/tray and Deepin install/live-readback gaps remain open.
+
+## Desktop engine lifecycle implementation — 2026-09-23
+
+- Made the manifest optional for `ts-daemon`; without one it starts with an
+  empty Safetensors manifest/library and uses `https://localhost/` as the
+  placeholder origin. Existing manifest-backed operation remains unchanged.
+- Updated daemon CLI usage so `--manifest` and `--origin` are optional; bind
+  addresses, store path, and `TS_DAEMON_AUTH_TOKEN` remain required.
+- Added an independent-process acceptance test that starts the daemon without
+  a manifest, reads authenticated status, and confirms `/v1/models` returns an
+  empty list.
+- `cargo test -p ts-daemon`: passed (4 unit tests, 3 process-acceptance tests).
+- Tauri does not yet launch or supervise this runtime. M6-06 remains in
+  progress; sidecar packaging, secret delivery into the UI, and graceful
+  shutdown/readback are not yet implemented or verified.
+
+## Tauri-owned engine startup — 2026-09-23
+
+- Linked `ts-daemon` into the Tauri app and start it during app setup using the
+  app-data cache directory, loopback-only control/proxy binds, empty manifest,
+  and a fresh UUID bearer token for each app session.
+- Added a narrow Tauri `desktop_session` command for the local URL/token. The
+  packaged UI requests it automatically, hides manual connection fields, waits
+  up to 10 seconds for `/healthz`, then loads authenticated daemon state.
+- Built and launched the real Windows debug desktop binary. Live loopback
+  readback returned `/healthz` HTTP 200 and protected `/v1/status` HTTP 401
+  without credentials. After stopping the app process, `/healthz` returned no
+  response (HTTP 000), confirming the in-process runtime ended with it.
+- `cargo fmt --all -- --check`, `cargo check --workspace`, and
+  `cargo test --workspace` passed; `git diff --check` passed.
+- Native window inspection was blocked because the desktop-capture driver
+  refused to target its authorization process. The startup request/rendered UI,
+  app-owned authenticated response, packaged install, close/tray behavior,
+  startup-failure recovery, and graceful Quit remain unverified.
 
 ## Reporting note
 
