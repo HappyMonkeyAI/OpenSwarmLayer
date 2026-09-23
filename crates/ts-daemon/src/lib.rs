@@ -88,6 +88,7 @@ impl DaemonState {
     }
 }
 
+#[derive(Clone)]
 pub struct RuntimeConfig {
     pub control_bind: String,
     pub proxy_bind: String,

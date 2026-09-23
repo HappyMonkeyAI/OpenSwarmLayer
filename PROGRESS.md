@@ -207,9 +207,9 @@ deferred.
   its registered per-user default; because a clean isolated install was not
   established, record this as installed-app launch/API smoke, not clean-install
   acceptance.
-- The CUA driver still blocks native-window capture/interaction. Rendered UI
-  state, in-app failure recovery, and graceful tray Quit remain unverified; no
-  claim of M6-06 acceptance.
+- Earlier CUA attempts could not read rendered UI state; the live-window test
+  recorded below later verified the error and recovery flow. Tray Quit remains
+  unverified.
 
 ## Engine bind-conflict and reopen recovery — 2026-09-23
 
@@ -222,6 +222,25 @@ deferred.
 - This verifies process-level recovery by reopening after a bind conflict, not
   an in-app restart or rendered error-state flow. Native error-state readback
   and explicit tray Quit remain unverified.
+
+## Visible engine failure recovery and release acceptance — 2026-09-23
+
+- Ran the current debug desktop app with the control port held by a test-owned
+  listener. The rendered UI showed the connection error and `Restart local
+  engine` action. Retrying while the port remained occupied returned to the
+  visible error state. After releasing the listener, clicking Restart brought
+  the UI to `Daemon online`; the empty library and live overview were visible.
+- Clicking the window Close control hid the window while the desktop process
+  and `/healthz` remained live (HTTP 200). Force-stopping the process tree
+  removed the endpoint (HTTP 000). This verifies close-to-background behavior,
+  not graceful tray Quit.
+- Rebuilt the Windows NSIS bundle from current sources:
+  `target/release/bundle/nsis/OpenSwarmLayer_0.1.1_x64-setup.exe`. Release
+  executable smoke returned `/healthz` HTTP 200 and unauthenticated
+  `/v1/status` HTTP 401; after process exit, `/healthz` returned HTTP 000.
+- M6-06 remains in progress until tray Quit/graceful shutdown and Linux
+  desktop acceptance are verified. This is UI/release evidence, not a claim of
+  full M6-06 completion or clean-install acceptance.
 
 ## Reporting note
 

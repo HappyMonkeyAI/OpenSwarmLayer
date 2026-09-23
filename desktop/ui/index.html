@@ -78,7 +78,7 @@
     <main>
       <header class="topbar"><div class="crumb">Workspace / <strong id="crumb">Overview</strong></div><div class="toolbar"><button class="ghost" id="refresh" title="Refresh data">↻ Refresh</button><div class="connection"><input id="base" value="http://127.0.0.1:9090" aria-label="Daemon URL"><input id="token" type="password" placeholder="Bearer token" aria-label="Bearer token"><button class="primary" id="connect">Connect</button></div></div></header>
       <div class="content">
-        <div id="error" class="notice warn" role="alert" hidden></div>
+        <div id="error" class="notice warn" role="alert" hidden><span id="error-message"></span> <button id="engine-restart" type="button" hidden>Restart local engine</button></div>
         <section class="view active" id="view-overview">
           <div class="view-head"><div><h1>Overview</h1><div class="subtitle">Your local model exchange at a glance.</div></div><div class="actions"><button id="repair">Repair cache</button><button class="primary" id="prepare-overview">Prepare model</button></div></div>
           <div class="cards"><article class="card blue"><div class="label">Models in library</div><div class="value" id="stat-models">—</div><div class="detail" id="stat-models-detail">Connect to daemon</div></article><article class="card green"><div class="label">Verified availability</div><div class="value" id="stat-verified">—</div><div class="detail" id="stat-verified-detail">Integrity status</div></article><article class="card amber"><div class="label">Connected peers</div><div class="value" id="stat-peers">—</div><div class="detail" id="stat-peers-detail">Discovery status</div></article><article class="card"><div class="label">Transferred this session</div><div class="value" id="stat-bytes">—</div><div class="detail" id="stat-speed">Waiting for activity</div></article></div>
@@ -101,7 +101,7 @@
     const pct = (done, total) => total ? Math.round((done / total) * 100) : 0;
     const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     function notify(message) { $('#toast').textContent = message; $('#toast').classList.add('show'); setTimeout(() => $('#toast').classList.remove('show'), 3200); }
-    function showError(error) { $('#error').textContent = error.message || String(error); $('#error').hidden = false; $('#state-dot').className = 'dot error'; $('#state-label').textContent = 'Connection error'; }
+    function showError(error) { $('#error-message').textContent = error.message || String(error); $('#engine-restart').hidden = !window.__TAURI__?.core?.invoke; $('#error').hidden = false; $('#state-dot').className = 'dot error'; $('#state-label').textContent = 'Connection error'; }
     function clearError() { $('#error').hidden = true; }
     async function api(path, options = {}) { const base = $('#base').value.replace(/\/$/, ''); const headers = { Authorization: `Bearer ${$('#token').value}`, ...(options.headers || {}) }; const response = await fetch(base + path, { ...options, headers }); if (!response.ok) { const text = await response.text(); const msg = `${response.status} ${response.statusText || text}`.trim(); throw new Error(msg || `${response.status} Error`); } return response.json(); }
     async function refresh() {
@@ -133,22 +133,26 @@
     async function repair() { try { const result = await api('/v1/cache/repair', { method: 'POST' }); $('#repair-result').textContent = `Removed ${result.removed} unreferenced object${result.removed === 1 ? '' : 's'}.`; notify(`Cache repair complete · ${result.removed} removed`); } catch (error) { showError(error); } }
     function navigate(view) { state.activeView = view; document.querySelectorAll('.view').forEach((node) => node.classList.toggle('active', node.id === `view-${view}`)); document.querySelectorAll('[data-view]').forEach((node) => node.classList.toggle('active', node.dataset.view === view)); $('#crumb').textContent = view[0].toUpperCase() + view.slice(1); }
     document.querySelectorAll('[data-view]').forEach((button) => button.onclick = () => navigate(button.dataset.view)); document.querySelectorAll('[data-navigate]').forEach((button) => button.onclick = () => navigate(button.dataset.navigate)); $('#connect').onclick = refresh; $('#refresh').onclick = refresh; $('#library-refresh').onclick = refresh; $('#peers-refresh').onclick = refresh; $('#settings-refresh').onclick = refresh; $('#repair').onclick = repair; $('#repair-settings').onclick = repair; $('#library-search').oninput = renderModels; $('#prepare-overview').onclick = () => state.models[0] && prepare(state.models[0]); $('#prepare-transfer').onclick = () => state.models.find((m) => m.path === state.selected) && prepare(state.models.find((m) => m.path === state.selected));
+    $('#engine-restart').onclick = async () => { const invoke = window.__TAURI__?.core?.invoke; if (!invoke) return; const button = $('#engine-restart'); button.disabled = true; try { await invoke('restart_local_engine'); await initializeDesktop(); } catch (error) { showError(error); } finally { button.disabled = false; } };
     async function initializeDesktop() {
       const invoke = window.__TAURI__?.core?.invoke;
       if (!invoke) { refresh(); return; }
       try {
+        clearError();
+        $('#state-label').textContent = 'Starting local engine';
         const session = await invoke('desktop_session');
         $('#base').value = session.base_url;
         $('#token').value = session.auth_token;
         document.body.classList.add('desktop-connected');
-        for (let attempt = 0; attempt < 40; attempt += 1) {
+        const deadline = Date.now() + 10000;
+        while (Date.now() < deadline) {
           try {
-            const response = await fetch(`${session.base_url}/healthz`);
+            const response = await fetch(`${session.base_url}/healthz`, { signal: AbortSignal.timeout(Math.min(1000, deadline - Date.now())) });
             if (response.ok) { await refresh(); return; }
           } catch (_) {}
           await new Promise((resolve) => setTimeout(resolve, 250));
         }
-        throw new Error('Local engine did not become ready. Close and reopen TensorSwarm, or use Refresh to retry.');
+        throw new Error('Local engine did not become ready. Resolve the port or startup issue, then restart the local engine.');
       } catch (error) { showError(error); }
     }
     initializeDesktop();
