@@ -11,13 +11,16 @@ are complete; M4's proxy, LAN, WebSeed, materialization, and verification paths
 are implemented and tested. The post-MVP M6 track has an authenticated
 `ts-daemon` and a Tauri v2 shell that starts the Rust engine automatically on
 desktop launch, uses an app-data cache and per-session token, and exposes a
-visible retry path after startup failure. Windows release/API and NSIS build
-smokes pass; Linux DEB/RPM/AppImage artifacts build and DEB install/remove has
-been exercised in WSL, but native Linux graphical acceptance is incomplete.
-In-app engine recovery and close-to-background behavior have live Windows UI
-evidence; explicit tray Quit remains unverified. Model import/sharing is still
-in progress. Transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting remains deferred
-as post-MVP work. See `TASKS.md` and `PROGRESS.md` for acceptance boundaries.
+visible retry path after startup failure. Windows release/API and NSIS install,
+import, prepare, persistence, uninstall, and occupied-port recovery evidence
+pass. Ubuntu WSLg packaged-DEB acceptance verified live UI state, Safetensors
+import, restart persistence, and an independent CLI P2P fetch with matching
+payload bytes/hash; this is not native Linux package/tray acceptance. Native
+Linux package install/readback and tray behavior, Windows packaged close/
+background and explicit tray Quit, and live GGUF UI remain open. M6-07
+import/verify/prepare/share acceptance is complete for the verified Safetensors
+slice. Transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting remains deferred as
+post-MVP work. See `TASKS.md` and `PROGRESS.md` for exact evidence boundaries.
 
 ## Agents Protocol adoption
 

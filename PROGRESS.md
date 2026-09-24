@@ -2,8 +2,8 @@
 
 Last updated: 2026-09-24
 Branch: master
-Working tree: pre-existing untracked `scripts/` preserved; acceptance notes updated
-HEAD: WSLg desktop runtime acceptance update; use `git log -1` for the exact commit
+Baseline HEAD at slice start: `55938e0` (`master` was eight commits ahead of `origin/master`)
+This handoff records M6-07 implementation and M6-08 Windows/WSLg acceptance; pre-existing untracked `scripts/` preserved, no push performed
 
 ## Completed this session
 
@@ -100,17 +100,78 @@ HEAD: WSLg desktop runtime acceptance update; use `git log -1` for the exact com
 
 ## Verification status
 
-The latest full workspace verification passed:
+Latest workspace and desktop verification passed on 2026-09-24:
 
 - `cargo fmt --all -- --check`
 - `cargo check --workspace`
-- `cargo test --workspace`
+- `cargo test --workspace` — CLI process 1; daemon 5 unit + 3 process;
+  desktop 8; core 1; format 9; P2P 14; proxy 10; store 7; doc-tests passed.
+- `cargo tauri build --debug --no-bundle`
+- Node parse of the inline UI script (1 script)
 - `git diff --check`
-- `cargo check --manifest-path fuzz/Cargo.toml --bin format_inspect`
-- `cargo run --manifest-path fuzz/Cargo.toml --bin format_inspect_smoke`
-- `cargo test -p ts-proxy https_webseed_fallback_verifies_stores_and_notifies`
 
-Current unit-test counts are 1 (`ts-core`), 9 (`ts-format`), 14 (`ts-p2p`), 10 (`ts-proxy`), 6 (`ts-store`), and 1 (`ts-cli` integration test), with doc-tests passing. The Criterion harness also compiled and ran; the recorded short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for 4 MiB SHA-256 on the documented host.
+## Windows NSIS packaged acceptance — 2026-09-24
+
+- Built the current unsigned per-user installer with
+  `cargo tauri build --bundles nsis --no-sign`; artifact:
+  `target/release/bundle/nsis/OpenSwarmLayer_0.1.1_x64-setup.exe`.
+- Removed the previous per-user installation and verified that its executable,
+  install directory, and HKCU uninstall registration were absent. Application
+  data was empty before first launch. Installed the current package and read
+  back version `0.1.1` and the installed executable.
+- Launched the installed package: `/healthz` returned 200 and unauthenticated
+  `/v1/status` returned 401. The native file picker imported a synthetic
+  91-byte Safetensors fixture; the UI showed one verified model and 1/1 chunks.
+- Prepared the complete file through the UI and verified the 91-byte output was
+  byte-identical to the source. An independent `ts-cli fetch-chunk` process
+  exited successfully against the packaged desktop P2P listener. The exact
+  payload/hash comparison was not retained, so this Windows package run is not
+  counted as verified P2P payload acceptance.
+- Force-stopped the test process, confirmed its health endpoint disappeared,
+  relaunched the installed package, and verified health 200/auth boundary 401,
+  one persisted manifest, and visible UI state of one model at 100% availability.
+  This proves restart persistence, not graceful Quit.
+- Ran the current package's silent uninstaller; after its delayed cleanup, the
+  program directory and HKCU uninstall registration were absent. Reinstalled
+  the package to leave the current app available; no desktop process or engine
+  listener remains. Removed the synthetic manifest, CAS object, and fixtures.
+- Verified separately with the installed Windows package: occupied-port error
+  state and recovery after releasing the conflicting listener. Not accepted in
+  this slice: Windows packaged close/background, explicit tray Quit, GGUF UI
+  import, and native Linux packaged lifecycle/sharing. No release code signing
+  was tested.
+
+## Ubuntu WSLg packaged DEB runtime and sharing — 2026-09-24
+
+- Rebuilt and inspected the Linux DEB from Ubuntu WSL, installed it, and launched
+  `/usr/bin/ts-desktop` in WSLg. The packaged UI rendered the online overview;
+  `/healthz` returned 200 and unauthenticated `/v1/status` returned 401.
+- Used the native GTK file picker to import a synthetic 91-byte Safetensors
+  fixture. Fresh UI state showed one model, `Verified`, and 1/1 available chunks.
+- An independent Linux `ts-cli fetch-chunk` process retrieved the 23-byte tensor
+  payload over loopback from the packaged desktop P2P provider. Its SHA-256
+  matched the manifest chunk hash and the fetched bytes matched the source
+  tensor range.
+- Sent SIGTERM to the packaged desktop and confirmed `/healthz` became
+  unavailable. Relaunched the installed package from a test-owned output
+  directory; the overview retained one model at 100% availability and the
+  health/auth readback remained 200/401.
+- Closed the packaged WSLg window and verified the window disappeared while
+  `/healthz` remained 200. SIGTERM then stopped the process and removed the
+  endpoint. This is close-to-background evidence, not explicit tray Quit.
+- Uninstalled the WSL DEB and read back that the package and executable were
+  absent. Removed the test library/runtime manifests, CAS chunk, WSL home fixture,
+  and Windows scratch fixture. App WebKit/cache files were left intact.
+- WSLg has no notification area in this session; no tray action was tested. This
+  proves packaged UI/runtime/share behavior in WSLg only, not native Linux
+  distro, tray, or package compatibility. Complete-file preparation was not
+  verified on Linux; the UI prompt was opened and canceled.
+
+Earlier supported-host fuzz and HTTPS WebSeed/provider-discovery acceptance
+remain recorded in the history below; those commands were not rerun in this
+desktop slice. The Criterion harness previously compiled and ran; its recorded
+short run measured approximately 50 ns for 64 MiB chunk planning and 1.96 ms for
+4 MiB SHA-256 on the documented host.
 
 ## MVP decision
 
@@ -126,16 +187,11 @@ Post-MVP limitations and deferred work:
 
 ## Recommended next slice
 
-Implement M6-06: Tauri-owned local engine lifecycle. A normal desktop user
-must not manually launch `ts-daemon` or install an OS service. First determine
-the packaged runtime location and supported CLI/config contract, then add
-app-owned startup/readiness/authentication/shutdown with failure readback.
-Keep headless daemon use as an optional operator path. Follow with M6-07's
-model import/verify/manifest/share/seed workflow and M6-08 packaged acceptance.
-The earlier manual Deepin daemon readback remains a platform acceptance gap,
-but should be resolved through the new app-owned flow rather than preserved as
-a required end-user procedure. Keep proxy rewriting and broader P2 features
-deferred.
+Continue M6-08 with Windows installed-package close/background acceptance and
+native Linux package/runtime acceptance using a controlled fixture. Keep M6-06's
+Windows tray Quit and native Linux tray/package gates explicitly open until
+directly exercised. Headless daemon use remains optional; transparent proxy
+rewriting and broader P2 features stay deferred.
 
 ## Product direction update — 2026-09-23
 
@@ -283,3 +339,44 @@ handoff check-in and its one retry. No work was blocked by the reporting channel
   Linux tray/package acceptance remain open; M6-06 stays in progress.
 - No source/runtime code changed in this acceptance slice; the Linux build
   output remains under ignored `target/`.
+
+## Desktop model import implementation slice — 2026-09-24
+
+- Added native file and recursive-folder selection for GGUF/Safetensors. Folder
+  scanning ignores symlinks, keeps nested relative paths, and rejects folders
+  with no supported models.
+- The importer parses every selected artifact and validates paths/manifests
+  before writing any new library manifest; chunk bytes are hash-verified into
+  the existing CAS, per-model manifests are persisted, a runtime catalog is
+  rebuilt, and the desktop restarts the engine against that catalog. The
+  native picker and parsing/store work run on blocking workers, not the UI
+  thread.
+- Added tests for valid import and verified chunk persistence, catalog rebuild,
+  nested folder paths, duplicate-name and mixed-format rejection, and invalid
+  folder imports not publishing a manifest. The daemon cancellation test also
+  verifies that cancelling the runtime releases control and proxy listeners.
+- Fixed complete-file preparation: `ts-store` now assembles tensor ranges from
+  the manifest's hash-verified CAS chunks instead of looking for an unstored
+  whole-tensor object. Added multi-chunk materialization and desktop import-to-
+  prepare regression tests.
+- Final verification passed: `cargo fmt --all -- --check`,
+  `cargo check --workspace`, `cargo test --workspace` (8 desktop tests, 7
+  store tests, and daemon/process suites), Windows debug
+  `cargo tauri build --debug --no-bundle`, and inline UI JavaScript parse.
+- The Windows debug UI imported the synthetic 108-byte Safetensors fixture
+  through both native file and recursive-folder pickers. The library showed the
+  verified model (1 tensor, 1/1 verified chunk); complete-file preparation
+  produced 108 bytes identical to the source. A separately spawned `ts-cli
+  fetch-chunk` requester then fetched the 40-byte tensor payload from the
+  running desktop P2P provider over loopback. The fetched SHA-256 matched the
+  manifest chunk hash and its bytes matched the fixture's tensor payload.
+- V3 process readback returned `/healthz` HTTP 200 and unauthenticated
+  `/v1/status` HTTP 401. After stopping the desktop process, no listener
+  remained on ports 9090/9091 and `/healthz` was unavailable. The temporary
+  fixture manifests, CAS object, and scratch files were removed afterward.
+- M6-07 is accepted for the Safetensors slice. Live GGUF UI coverage and
+  packaged/cross-platform sharing acceptance remain under M6-08. The catalog
+  schema permits one artifact format per library. Windows tray Quit and native
+  Linux package/tray acceptance remain open under M6-06/M6-08.
+- No commit or push was made. The pre-existing untracked `scripts/` directory
+  remains untouched.

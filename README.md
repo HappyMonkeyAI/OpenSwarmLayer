@@ -22,9 +22,21 @@ do not need to start a daemon in a terminal. The engine exposes its authenticate
 control API on loopback port 9090 and its model proxy on port 9091, and stores its
 cache under the application data directory. Closing the main window hides the
 app; the tray menu provides Show and Quit actions. The overview and local-engine
-retry flow are implemented, while model import/sharing and full cross-platform
-desktop acceptance remain in progress. See [TASKS.md](TASKS.md) and
-[PROGRESS.md](PROGRESS.md) for evidence and open acceptance gates. Headless
+retry flow are implemented. The desktop has GGUF/Safetensors file and
+recursive-folder import controls.
+Windows debug acceptance verified file/folder selection, verified import,
+byte-identical preparation, and an independent P2P chunk fetch. The current
+unsigned Windows NSIS package was clean-installed and accepted through first
+launch, 91-byte fixture import/verification, byte-identical preparation,
+process-restart persistence, uninstall readback, and occupied-port recovery.
+Its independent CLI fetch exited successfully, but the payload/hash comparison
+was not retained, so it is not counted as verified package transfer. An Ubuntu
+WSLg run of the packaged DEB verified visible model import/state, restart
+persistence, and an independent 23-byte P2P fetch whose hash and bytes matched
+the source tensor range. WSLg is not native Linux acceptance. Live GGUF UI,
+Windows packaged close/background and tray Quit, and native Linux package/tray
+acceptance remain open. See [TASKS.md](TASKS.md) and
+[PROGRESS.md](PROGRESS.md) for evidence and open gates. Headless
 `ts-daemon` and `ts-cli` workflows remain available for server/operator use.
 
 See [PLAN.md](PLAN.md) for milestones and [TASKS.md](TASKS.md) for the executable task board.

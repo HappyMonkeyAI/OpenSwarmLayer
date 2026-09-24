@@ -14,7 +14,7 @@ MVP uses fixed-size chunks with boundaries aligned to the source datatype block 
 
 ## Materialization design
 
-The materializer writes literal and tensor segments at their specified file offsets. It maintains a durable verified-chunk bitmap and uses atomic temporary files for metadata/state updates. The output is exposed to clients only for ranges that are present and verified.
+The materializer writes literal and tensor segments at their specified file offsets. Tensor ranges are assembled from their ordered, hash-verified CAS chunks; a separate whole-tensor CAS object is not required. It maintains a durable verified-chunk bitmap and uses atomic temporary files for metadata/state updates. The output is exposed to clients only for ranges that are present and verified.
 
 ## P2P design
 

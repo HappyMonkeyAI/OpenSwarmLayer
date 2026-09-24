@@ -8,10 +8,19 @@ license.workspace = true
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+anyhow.workspace = true
 tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
 serde.workspace = true
+serde_cbor.workspace = true
+ts-core = { path = "../../crates/ts-core" }
 ts-daemon = { path = "../../crates/ts-daemon" }
+ts-format = { path = "../../crates/ts-format" }
+ts-store = { path = "../../crates/ts-store" }
 uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"
 
 [features]
 default = ["custom-protocol"]

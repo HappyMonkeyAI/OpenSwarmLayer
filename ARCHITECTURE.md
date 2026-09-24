@@ -71,5 +71,12 @@ control API exposes inventory, transfer, peer and metric status, verification,
 cache repair, preparation, and proxy/runtime operations. Keep local
 authentication and origin boundaries intact. The engine currently supports an
 empty library when no manifest is configured, allowing first launch to reach a
-usable desktop state. Model import and sharing through the UI remain future
-work; see `TASKS.md` for milestone status.
+usable desktop state. The desktop's file/folder import path uses the existing
+format parser, writes hash-verified chunks to `ts-store`, persists individual model manifests and a
+combined runtime catalog, then restarts the engine against that catalog. The
+current catalog schema requires all imported files to use one artifact format.
+Visible Windows debug/NSIS and Ubuntu WSLg packaged-DEB Safetensors import and
+verification are accepted. Independent peer fetch/hash/byte readback is verified
+for the Windows debug and WSLg packaged-DEB runs. Native Linux package/tray
+acceptance, Windows packaged close/background and tray Quit, and GGUF UI coverage
+remain open; see `TASKS.md`.

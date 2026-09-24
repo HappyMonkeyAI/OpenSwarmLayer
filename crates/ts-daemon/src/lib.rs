@@ -441,13 +441,13 @@ pub async fn serve_runtime(config: RuntimeConfig) -> anyhow::Result<()> {
         .with_peer_id(peer_id)
         .with_settings(&config.control_bind, &config.proxy_bind, &config.origin_url)
         .running();
-    let p2p_task = tokio::spawn(ts_p2p::run_lan_node_with_provider(swarm, provider));
+    let mut service_tasks = tokio::task::JoinSet::new();
+    service_tasks.spawn(ts_p2p::run_lan_node_with_provider(swarm, provider));
     let proxy_bind = config.proxy_bind;
-    let proxy_task =
-        tokio::spawn(async move { ts_proxy::serve_manifest(&proxy_bind, proxy_state).await });
+    service_tasks.spawn(async move { ts_proxy::serve_manifest(&proxy_bind, proxy_state).await });
     let control_result = serve(&config.control_bind, state).await;
-    p2p_task.abort();
-    proxy_task.abort();
+    service_tasks.abort_all();
+    while service_tasks.join_next().await.is_some() {}
     control_result
 }
 
@@ -495,7 +495,47 @@ mod tests {
     use super::*;
     use axum::body::{to_bytes, Body};
     use axum::http::Request;
+    use std::net::TcpListener as StdTcpListener;
+    use std::time::Duration;
     use tower::ServiceExt;
+
+    fn free_address() -> String {
+        let listener = StdTcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().to_string()
+    }
+
+    async fn wait_for_health(url: String) {
+        let client = reqwest::Client::new();
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if client
+                    .get(&url)
+                    .send()
+                    .await
+                    .is_ok_and(|response| response.status().is_success())
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("runtime health endpoint did not start");
+    }
+
+    async fn wait_for_bind(address: String) {
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                if let Ok(listener) = tokio::net::TcpListener::bind(&address).await {
+                    drop(listener);
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("runtime listener remained bound after cancellation");
+    }
 
     #[tokio::test]
     async fn health_is_public_and_status_requires_local_token() {
@@ -546,6 +586,30 @@ mod tests {
         let body = String::from_utf8(body.to_vec()).unwrap();
         assert!(body.contains("\"p2p\":\"running\""));
         assert!(body.contains("\"proxy\":\"running\""));
+    }
+
+    #[tokio::test]
+    async fn cancelling_runtime_releases_control_and_proxy_listeners() {
+        let directory = tempfile::tempdir().unwrap();
+        let control_bind = free_address();
+        let proxy_bind = free_address();
+        let control_url = format!("http://{control_bind}/healthz");
+        let proxy_url = format!("http://{proxy_bind}/healthz");
+        let task = tokio::spawn(serve_runtime(RuntimeConfig {
+            control_bind: control_bind.clone(),
+            proxy_bind: proxy_bind.clone(),
+            manifest_path: None,
+            store_root: directory.path().join("cache"),
+            origin_url: "https://localhost/".into(),
+            auth_token: "runtime-cancel-token".into(),
+        }));
+
+        wait_for_health(control_url).await;
+        wait_for_health(proxy_url).await;
+        task.abort();
+        let _ = task.await;
+        wait_for_bind(control_bind).await;
+        wait_for_bind(proxy_bind).await;
     }
 
     #[test]

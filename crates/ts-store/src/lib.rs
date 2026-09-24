@@ -243,21 +243,74 @@ impl ObjectStore {
                     tensor_hash,
                     tensor_offset,
                     length,
-                } => {
-                    let bytes = self.get(*tensor_hash)?;
-                    let end = tensor_offset
-                        .checked_add(*length)
-                        .ok_or(StoreError::InvalidSegment)? as usize;
-                    let start = *tensor_offset as usize;
-                    if start > end || end > bytes.len() {
-                        return Err(StoreError::InvalidSegment);
-                    }
-                    write_at(&mut file, *offset, &bytes[start..end])?;
-                }
+                } => self.write_tensor_range(
+                    manifest,
+                    *tensor_hash,
+                    *tensor_offset,
+                    *length,
+                    *offset,
+                    &mut file,
+                )?,
             }
         }
         file.sync_all()?;
         fs::rename(temporary, output)?;
+        Ok(())
+    }
+
+    fn write_tensor_range(
+        &self,
+        manifest: &Manifest,
+        tensor_hash: Hash32,
+        tensor_offset: u64,
+        length: u64,
+        output_offset: u64,
+        file: &mut File,
+    ) -> Result<(), StoreError> {
+        let tensor = manifest
+            .tensors
+            .iter()
+            .find(|tensor| tensor.tensor_hash == tensor_hash)
+            .ok_or(StoreError::InvalidSegment)?;
+        let range_end = tensor_offset
+            .checked_add(length)
+            .filter(|end| *end <= tensor.descriptor.byte_len)
+            .ok_or(StoreError::InvalidSegment)?;
+        let mut copied = 0_u64;
+
+        for chunk in &tensor.chunks {
+            let chunk_end = chunk
+                .offset
+                .checked_add(chunk.length)
+                .ok_or(StoreError::InvalidSegment)?;
+            let start = tensor_offset.max(chunk.offset);
+            let end = range_end.min(chunk_end);
+            if start >= end {
+                continue;
+            }
+            if start != tensor_offset + copied {
+                return Err(StoreError::InvalidSegment);
+            }
+
+            let bytes = self.get(chunk.hash)?;
+            if bytes.len() as u64 != chunk.length {
+                return Err(StoreError::InvalidSegment);
+            }
+            let chunk_start = (start - chunk.offset) as usize;
+            let chunk_end = (end - chunk.offset) as usize;
+            write_at(
+                file,
+                output_offset
+                    .checked_add(copied)
+                    .ok_or(StoreError::InvalidSegment)?,
+                &bytes[chunk_start..chunk_end],
+            )?;
+            copied += end - start;
+        }
+
+        if copied != length {
+            return Err(StoreError::InvalidSegment);
+        }
         Ok(())
     }
 }
@@ -392,6 +445,64 @@ mod tests {
         let output = root.path().join("materialized.bin");
         store.materialize(&manifest, &output).unwrap();
         assert_eq!(fs::read(output).unwrap(), b"headtensor");
+    }
+
+    #[test]
+    fn materializer_reconstructs_tensor_from_multiple_verified_chunks() {
+        let root = tempfile::tempdir().unwrap();
+        let store = ObjectStore::open(root.path()).unwrap();
+        let first = b"tensor ";
+        let second = b"chunks";
+        let payload = [first.as_slice(), second.as_slice()].concat();
+        let tensor_hash = sha256(&payload);
+        let first_hash = sha256(first);
+        let second_hash = sha256(second);
+        store.put_verified(first_hash, first).unwrap();
+        store.put_verified(second_hash, second).unwrap();
+        let node = TensorNode {
+            descriptor: TensorDescriptor {
+                name: "x".into(),
+                shape: vec![payload.len() as u64],
+                dtype: "U8".into(),
+                byte_len: payload.len() as u64,
+            },
+            tensor_hash,
+            chunks: vec![
+                ChunkRef {
+                    index: 0,
+                    offset: 0,
+                    length: first.len() as u64,
+                    hash: first_hash,
+                },
+                ChunkRef {
+                    index: 1,
+                    offset: first.len() as u64,
+                    length: second.len() as u64,
+                    hash: second_hash,
+                },
+            ],
+        };
+        let manifest = Manifest::new(
+            ArtifactFormat::Safetensors,
+            payload.len() as u64,
+            vec![node],
+            vec![FileRecipe {
+                path: "x".into(),
+                format: ArtifactFormat::Safetensors,
+                file_size: payload.len() as u64,
+                segments: vec![Segment::Tensor {
+                    offset: 0,
+                    tensor_hash,
+                    tensor_offset: 0,
+                    length: payload.len() as u64,
+                }],
+            }],
+        );
+        let output = root.path().join("materialized.bin");
+
+        store.materialize(&manifest, &output).unwrap();
+
+        assert_eq!(fs::read(output).unwrap(), payload);
     }
 
     #[test]
