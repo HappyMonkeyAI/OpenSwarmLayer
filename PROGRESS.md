@@ -1,9 +1,9 @@
 # TensorSwarm progress handoff
 
-Last updated: 2026-09-15
+Last updated: 2026-09-24
 Branch: master
-Working tree: untracked acceptance scripts present; no tracked changes
-HEAD: 1af5518 docs: record Deepin daemon setup progress
+Working tree: pre-existing untracked `scripts/` preserved; acceptance notes updated
+HEAD: WSLg desktop runtime acceptance update; use `git log -1` for the exact commit
 
 ## Completed this session
 
@@ -263,3 +263,23 @@ deferred.
 
 The LAN announcement daemon at `192.168.5.229:4100` was unreachable during the final
 handoff check-in and its one retry. No work was blocked by the reporting channel.
+
+## WSLg Linux desktop runtime smoke — 2026-09-24
+
+- Found the existing Ubuntu WSL distribution has WSLg (`DISPLAY=:0`,
+  `WAYLAND_DISPLAY=wayland-0`) and the GTK/WebKit Tauri build dependencies.
+- `cargo check -p ts-desktop` passed in Ubuntu WSL; `cargo tauri build --debug
+  --no-bundle` produced `target/debug/ts-desktop` for Linux.
+- Launched that Linux binary in the WSLg desktop. The rendered overview showed
+  the local daemon online, empty model library, and live overview state;
+  `/healthz` returned HTTP 200 and unauthenticated `/v1/status` returned HTTP
+  401.
+- Closed the WSLg app window and verified it disappeared while the Linux app
+  process and `/healthz` remained live (HTTP 200). Sent SIGTERM to the
+  test-owned process and read back HTTP 000 afterward; no test process remained.
+- This is interactive WSLg debug-runtime evidence, not Deepin/native desktop,
+  packaged install, or tray evidence. WSLg did not provide a Linux notification
+  area for tray interaction. Windows tray Quit/graceful shutdown and native
+  Linux tray/package acceptance remain open; M6-06 stays in progress.
+- No source/runtime code changed in this acceptance slice; the Linux build
+  output remains under ignored `target/`.
