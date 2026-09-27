@@ -1102,3 +1102,15 @@ handoff check-in and its one retry. No work was blocked by the reporting channel
   (tampered bundle, wrong manifest/identifier, and destination conflicts) and
   Linux Secret Service/native acceptance. The independent-user M7-06 pilot also
   remains open. No source code changed; no commit or push was made.
+
+## 2026-09-27 — Commit and push verified working set
+
+- Re-ran `cargo fmt --all -- --check`, `cargo test --workspace`,
+  `cargo check --workspace`, `cargo build --workspace`, and `git diff --check`;
+  all passed on Windows. A staged credential-pattern scan found no matches.
+- Committed the reviewed tracked changes and required new source/docs as
+  `bf5ce6f` (`feat: add signed private model release sharing`, 32 files).
+  The untracked `scripts/` directory was deliberately left out.
+- Pushed `master` to `origin`. `git ls-remote` read back the exact pushed
+  commit `bf5ce6f0257073b4891b9b7845a47d9887b30adb`; local ahead/behind is
+  0/0. The only remaining working-tree item is untracked `scripts/`.
