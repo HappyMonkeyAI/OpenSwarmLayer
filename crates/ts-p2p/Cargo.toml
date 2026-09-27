@@ -9,7 +9,7 @@ ts-core = { path = "../ts-core" }
 ts-store = { path = "../ts-store" }
 serde.workspace = true
 sha2 = "0.10"
-libp2p = { version = "0.56", features = ["tokio", "quic", "tcp", "noise", "yamux", "mdns", "kad", "identify", "request-response", "cbor"] }
+libp2p = { version = "0.57", features = ["tokio", "quic", "tcp", "noise", "yamux", "mdns", "kad", "identify", "request-response", "cbor"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 anyhow.workspace = true

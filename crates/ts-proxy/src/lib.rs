@@ -120,7 +120,15 @@ pub fn lan_peer_fetch(
     })
 }
 
-pub type VerifiedChunkNotify = Arc<dyn Fn(Hash32) + Send + Sync>;
+#[derive(Clone, Debug)]
+pub struct VerifiedChunkUpdate {
+    pub tensor_hash: Hash32,
+    pub chunk_index: u32,
+    pub chunk_hash: Hash32,
+    pub bytes: Vec<u8>,
+}
+
+pub type VerifiedChunkNotify = Arc<dyn Fn(VerifiedChunkUpdate) + Send + Sync>;
 
 #[derive(Clone)]
 pub struct FetchEngine {
@@ -144,8 +152,8 @@ impl FetchEngine {
     }
 
     pub fn with_verified_chunk_sender(self, sender: tokio::sync::mpsc::Sender<Hash32>) -> Self {
-        self.with_verified_chunk_notify(Arc::new(move |hash| {
-            let _ = sender.try_send(hash);
+        self.with_verified_chunk_notify(Arc::new(move |update| {
+            let _ = sender.try_send(update.chunk_hash);
         }))
     }
 
@@ -184,7 +192,12 @@ impl FetchEngine {
                 Ok(bytes) if bytes.len() as u64 == expected_len && sha256(&bytes) == expected => {
                     self.store.put_verified(expected, &bytes)?;
                     if let Some(notify) = &self.verified_chunk_notify {
-                        notify(expected);
+                        notify(VerifiedChunkUpdate {
+                            tensor_hash,
+                            chunk_index,
+                            chunk_hash: expected,
+                            bytes: bytes.clone(),
+                        });
                     }
                     return Ok(bytes);
                 }
@@ -198,10 +211,16 @@ impl FetchEngine {
             .await
         {
             Ok(_) => {
+                let bytes = self.store.get(expected)?;
                 if let Some(notify) = &self.verified_chunk_notify {
-                    notify(expected);
+                    notify(VerifiedChunkUpdate {
+                        tensor_hash,
+                        chunk_index,
+                        chunk_hash: expected,
+                        bytes: bytes.clone(),
+                    });
                 }
-                Ok(self.store.get(expected)?)
+                Ok(bytes)
             }
             Err(webseed_error) => anyhow::bail!(
                 "chunk unavailable from swarm and WebSeed: {}; {}",
@@ -750,6 +769,78 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn manifest_fetch_notifies_with_verified_chunk_identity() {
+        let root = tempfile::tempdir().unwrap();
+        let store = ts_store::ObjectStore::open(root.path()).unwrap();
+        let payload = b"runtime-provider".to_vec();
+        let chunk_hash = sha256(&payload);
+        let tensor_hash = sha256(b"runtime-tensor");
+        let manifest = Manifest::new(
+            ts_core::ArtifactFormat::Safetensors,
+            payload.len() as u64,
+            vec![ts_core::TensorNode {
+                descriptor: ts_core::TensorDescriptor {
+                    name: "weight".into(),
+                    shape: vec![payload.len() as u64],
+                    dtype: "U8".into(),
+                    byte_len: payload.len() as u64,
+                },
+                tensor_hash,
+                chunks: vec![ChunkRef {
+                    index: 0,
+                    offset: 0,
+                    length: payload.len() as u64,
+                    hash: chunk_hash,
+                }],
+            }],
+            vec![ts_core::FileRecipe {
+                path: "model.safetensors".into(),
+                format: ts_core::ArtifactFormat::Safetensors,
+                file_size: payload.len() as u64,
+                segments: vec![Segment::Tensor {
+                    offset: 0,
+                    tensor_hash,
+                    tensor_offset: 0,
+                    length: payload.len() as u64,
+                }],
+            }],
+        );
+        let (notify_tx, mut notify_rx) = tokio::sync::mpsc::channel(1);
+        let engine =
+            FetchEngine::new(store.clone()).with_verified_chunk_notify(Arc::new(move |update| {
+                notify_tx.try_send(update).unwrap()
+            }));
+        let peer_payload = payload.clone();
+        let expected_len = payload.len() as u64;
+        let peer: PeerFetch = Arc::new(move |requested_tensor, index, range, expected| {
+            assert_eq!(requested_tensor, tensor_hash);
+            assert_eq!(index, 0);
+            assert_eq!(range, 0..expected_len);
+            assert_eq!(expected, chunk_hash);
+            let payload = peer_payload.clone();
+            Box::pin(async move { Ok(payload) })
+        });
+
+        let bytes = engine
+            .fetch_manifest_range(
+                &manifest,
+                "https://invalid.example/model.safetensors",
+                0..payload.len() as u64,
+                Some(peer),
+            )
+            .await
+            .unwrap();
+        let update = notify_rx.recv().await.unwrap();
+
+        assert_eq!(bytes, payload);
+        assert_eq!(store.get(chunk_hash).unwrap(), payload);
+        assert_eq!(update.tensor_hash, tensor_hash);
+        assert_eq!(update.chunk_index, 0);
+        assert_eq!(update.chunk_hash, chunk_hash);
+        assert_eq!(update.bytes, payload);
+    }
+
+    #[tokio::test]
     async fn fetch_engine_rejects_origin_outage_without_cache_write() {
         let root = tempfile::tempdir().unwrap();
         let store = ts_store::ObjectStore::open(root.path()).unwrap();
@@ -891,7 +982,7 @@ mod tests {
         let provider_payload = b"tensor".to_vec();
         let tensor_hash = sha256(b"tensor-identity");
         let chunk_hash = sha256(&provider_payload);
-        let mut provider = ts_p2p::ChunkProvider::default();
+        let provider = ts_p2p::ChunkProvider::default();
         provider
             .insert_chunk(tensor_hash, 0, chunk_hash, provider_payload)
             .unwrap();
@@ -1087,7 +1178,39 @@ mod tests {
 
         let _ = rustls::crypto::ring::default_provider().install_default();
         let payload = b"published-fallback".to_vec();
-        let tensor_hash = sha256(&payload);
+        let chunk_hash = sha256(&payload);
+        let tensor_hash = sha256(b"published tensor identity");
+        let file_size = payload.len() as u64;
+        let manifest = Arc::new(Manifest::new(
+            ts_core::ArtifactFormat::Safetensors,
+            file_size,
+            vec![ts_core::TensorNode {
+                descriptor: ts_core::TensorDescriptor {
+                    name: "weight".into(),
+                    shape: vec![file_size],
+                    dtype: "U8".into(),
+                    byte_len: file_size,
+                },
+                tensor_hash,
+                chunks: vec![ChunkRef {
+                    index: 0,
+                    offset: 0,
+                    length: file_size,
+                    hash: chunk_hash,
+                }],
+            }],
+            vec![ts_core::FileRecipe {
+                path: "model.bin".into(),
+                format: ts_core::ArtifactFormat::Safetensors,
+                file_size,
+                segments: vec![Segment::Tensor {
+                    offset: 0,
+                    tensor_hash,
+                    tensor_offset: 0,
+                    length: file_size,
+                }],
+            }],
+        ));
         let app = Router::new().route(
             "/model.bin",
             get({
@@ -1123,16 +1246,35 @@ mod tests {
         .await
         .expect("HTTPS test server did not start");
 
+        let root = tempfile::tempdir().unwrap();
+        let store = ts_store::ObjectStore::open(root.path()).unwrap();
+        let provider = ts_p2p::ChunkProvider::from_manifest(&store, &manifest).unwrap();
         let server = ts_p2p::build_lan_swarm_with_listeners(&["/ip4/127.0.0.1/tcp/0"]).unwrap();
         let server_id = *server.local_peer_id();
         let (address_tx, address_rx) = tokio::sync::oneshot::channel();
         let (publish_tx, mut publish_rx) = tokio::sync::mpsc::channel(1);
+        let live_provider = provider.clone();
+        let provider_manifest = manifest.clone();
+        let notify = Arc::new(move |update: VerifiedChunkUpdate| {
+            if live_provider
+                .insert_manifest_chunk(
+                    &provider_manifest,
+                    update.tensor_hash,
+                    update.chunk_index,
+                    update.chunk_hash,
+                    update.bytes,
+                )
+                .is_ok()
+            {
+                let _ = publish_tx.try_send(update.tensor_hash);
+            }
+        });
         let server_task = tokio::spawn(async move {
             let mut server = server;
             let mut listen_tx = Some(address_tx);
             ts_p2p::run_lan_node_with_provider_and_events(
                 &mut server,
-                ts_p2p::ChunkProvider::default(),
+                provider,
                 &mut listen_tx,
                 Some(&mut publish_rx),
             )
@@ -1142,18 +1284,15 @@ mod tests {
             .await
             .unwrap()
             .with(libp2p::multiaddr::Protocol::P2p(server_id.into()));
-        let root = tempfile::tempdir().unwrap();
-        let store = ts_store::ObjectStore::open(root.path()).unwrap();
         let engine = FetchEngine {
             store: store.clone(),
             webseed: WebSeeder::with_client(client),
-            verified_chunk_notify: None,
-        }
-        .with_verified_chunk_sender(publish_tx);
+            verified_chunk_notify: Some(notify),
+        };
         let url = format!("https://localhost:{}/model.bin", address.port());
         assert_eq!(
             engine
-                .fetch_chunk(&url, 0..payload.len() as u64, tensor_hash, None)
+                .fetch_manifest_range(&manifest, &url, 0..file_size, None)
                 .await
                 .unwrap(),
             payload
@@ -1198,11 +1337,29 @@ mod tests {
         })
         .await
         .expect("published provider lookup timed out");
+        let mut client = ts_p2p::LanClient::new(discovery);
+        let fetched = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            client.fetch_chunk(
+                server_id,
+                ts_p2p::ChunkRequest {
+                    request_id: 1,
+                    tensor_hash,
+                    chunk_index: 0,
+                    expected_hash: chunk_hash,
+                },
+                3,
+            ),
+        )
+        .await
+        .expect("independent P2P chunk fetch timed out")
+        .unwrap();
         https_task.abort();
         server_task.abort();
         assert!(
             discovered,
             "second node did not discover published provider"
         );
+        assert_eq!(fetched, payload);
     }
 }

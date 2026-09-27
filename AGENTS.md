@@ -6,7 +6,7 @@ Make small, evidence-backed changes without damaging existing work. Preserve the
 
 ## Session grounding
 
-Before non-trivial work, read `README.md`, `CONTEXT.md`, `MCP.md`, `ARCHITECTURE.md`, `TASKS.md`, and `PROGRESS.md`. Check `git status --short --branch` first; never reset, clean, stash, or overwrite pre-existing dirty work.
+Before non-trivial work, read `README.md`, `CONTEXT.md`, `MCP.md`, `SPEC.md`, `ARCHITECTURE.md`, `PLAN.md`, `ROADMAP.md`, `TASKS.md`, and `PROGRESS.md`. Check `git status --short --branch` first; never reset, clean, stash, or overwrite pre-existing dirty work. Use `SPEC.md` for requirements, `ROADMAP.md` for next-slice ordering, `TASKS.md` for executable status/acceptance, and `PROGRESS.md` for dated evidence; keep these roles distinct and reconcile contradictions against the latest verified evidence.
 
 ## Work modes
 

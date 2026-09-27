@@ -4,7 +4,7 @@ This repository adopts the portable Agents Protocol spine while keeping TensorSw
 
 ## Grounding order
 
-Read `README.md`, `CONTEXT.md`, `AGENTS.md`, `MCP.md`, `ARCHITECTURE.md`, `TASKS.md`, and `PROGRESS.md`. Inspect `git status --short --branch` before edits.
+Read `README.md`, `CONTEXT.md`, `AGENTS.md`, `MCP.md`, `SPEC.md`, `ARCHITECTURE.md`, `DESIGN.md`, `PLAN.md`, `ROADMAP.md`, `TASKS.md`, and `PROGRESS.md`. Inspect `git status --short --branch` before edits. Use the roadmap for next-slice order, the task board for acceptance/status, and progress for verified evidence; reconcile contradictions rather than duplicating or assuming completion.
 
 ## MCP discovery
 

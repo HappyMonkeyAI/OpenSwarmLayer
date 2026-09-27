@@ -9,3 +9,4 @@ serde.workspace = true
 thiserror.workspace = true
 sha2 = "0.10"
 serde_cbor.workspace = true
+ed25519-dalek = { version = "2.2", features = ["rand_core"] }

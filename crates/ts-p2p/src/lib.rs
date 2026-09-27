@@ -225,7 +225,6 @@ impl LanClient {
                                     .bytes_transferred
                                     .fetch_add(payload.len() as u64, AtomicOrdering::Relaxed);
                                 self.peer_scores.lock().await.record_success(peer);
-                                let _ = publish_tensor(&mut self.swarm, &request.tensor_hash);
                                 return Ok(payload)
                             }
                             PeerResponse::Error { code, .. } => {
@@ -339,6 +338,11 @@ impl LanClient {
 
 #[derive(Clone, Debug, Default)]
 pub struct ChunkProvider {
+    inventory: std::sync::Arc<std::sync::RwLock<ProviderInventory>>,
+}
+
+#[derive(Debug, Default)]
+struct ProviderInventory {
     manifests: HashMap<Hash32, Vec<u8>>,
     chunks: HashMap<(Hash32, u32), Vec<u8>>,
 }
@@ -349,11 +353,20 @@ impl ChunkProvider {
         manifest: &Manifest,
     ) -> anyhow::Result<Self> {
         anyhow::ensure!(manifest.verify_root(), "manifest root verification failed");
-        let mut provider = Self::default();
+        let provider = Self::default();
         provider.insert_manifest(manifest.root, manifest.to_bytes());
         for tensor in &manifest.tensors {
             for chunk in &tensor.chunks {
-                let bytes = store.get(chunk.hash)?;
+                let bytes = match store.get(chunk.hash) {
+                    Ok(bytes) => bytes,
+                    Err(
+                        ts_store::StoreError::Missing(_)
+                        | ts_store::StoreError::HashMismatch { .. },
+                    ) => {
+                        continue;
+                    }
+                    Err(error) => return Err(error.into()),
+                };
                 anyhow::ensure!(
                     bytes.len() as u64 == chunk.length,
                     "stored chunk length mismatch"
@@ -366,12 +379,25 @@ impl ChunkProvider {
         Ok(provider)
     }
 
-    pub fn insert_manifest(&mut self, hash: Hash32, bytes: Vec<u8>) {
-        self.manifests.insert(hash, bytes);
+    pub fn insert_manifest(&self, hash: Hash32, bytes: Vec<u8>) {
+        self.inventory
+            .write()
+            .expect("provider inventory lock poisoned")
+            .manifests
+            .insert(hash, bytes);
+    }
+
+    pub fn has_verified_chunks_for_tensor(&self, tensor_hash: &Hash32) -> bool {
+        self.inventory
+            .read()
+            .expect("provider inventory lock poisoned")
+            .chunks
+            .keys()
+            .any(|(available_tensor, _)| available_tensor == tensor_hash)
     }
 
     pub fn insert_chunk(
-        &mut self,
+        &self,
         tensor_hash: Hash32,
         index: u32,
         expected: Hash32,
@@ -380,13 +406,49 @@ impl ChunkProvider {
         if sha256(&bytes) != expected {
             return Err(PeerErrorCode::InvalidRequest);
         }
-        self.chunks.insert((tensor_hash, index), bytes);
+        self.inventory
+            .write()
+            .expect("provider inventory lock poisoned")
+            .chunks
+            .insert((tensor_hash, index), bytes);
         Ok(())
     }
 
+    pub fn insert_manifest_chunk(
+        &self,
+        manifest: &Manifest,
+        tensor_hash: Hash32,
+        index: u32,
+        expected: Hash32,
+        bytes: Vec<u8>,
+    ) -> Result<(), PeerErrorCode> {
+        if !manifest.verify_root() {
+            return Err(PeerErrorCode::InvalidRequest);
+        }
+        let Some(reference) = manifest
+            .tensors
+            .iter()
+            .find(|tensor| tensor.tensor_hash == tensor_hash)
+            .and_then(|tensor| tensor.chunks.iter().find(|chunk| chunk.index == index))
+        else {
+            return Err(PeerErrorCode::InvalidRequest);
+        };
+        if reference.hash != expected
+            || reference.length != bytes.len() as u64
+            || sha256(&bytes) != expected
+        {
+            return Err(PeerErrorCode::InvalidRequest);
+        }
+        self.insert_chunk(tensor_hash, index, expected, bytes)
+    }
+
     pub fn respond(&self, request: PeerRequest) -> PeerResponse {
+        let inventory = self
+            .inventory
+            .read()
+            .expect("provider inventory lock poisoned");
         match request {
-            PeerRequest::GetManifest { manifest_hash } => self
+            PeerRequest::GetManifest { manifest_hash } => inventory
                 .manifests
                 .get(&manifest_hash)
                 .map(|bytes| PeerResponse::Manifest {
@@ -413,7 +475,7 @@ impl ChunkProvider {
                         code: PeerErrorCode::InvalidRequest,
                     };
                 };
-                match self.chunks.get(&(tensor_hash, request.chunk_index)) {
+                match inventory.chunks.get(&(tensor_hash, request.chunk_index)) {
                     Some(payload)
                         if payload.len() <= MAX_CHUNK_BYTES
                             && sha256(payload) == request.expected_hash =>
@@ -440,9 +502,12 @@ impl ChunkProvider {
                 hashes: hashes
                     .into_iter()
                     .filter(|hash| {
-                        self.chunks.keys().any(|(tensor, _)| tensor == hash)
-                            || self.chunks.values().any(|bytes| sha256(bytes) == *hash)
-                            || self.manifests.contains_key(hash)
+                        inventory.chunks.keys().any(|(tensor, _)| tensor == hash)
+                            || inventory
+                                .chunks
+                                .values()
+                                .any(|bytes| sha256(bytes) == *hash)
+                            || inventory.manifests.contains_key(hash)
                     })
                     .collect(),
             },
@@ -973,7 +1038,7 @@ mod tests {
 
     #[test]
     fn provider_only_serves_hash_verified_chunks() {
-        let mut provider = ChunkProvider::default();
+        let provider = ChunkProvider::default();
         let tensor = Hash32([3; 32]);
         let payload = b"chunk".to_vec();
         let expected = ts_core::sha256(&payload);
@@ -1063,6 +1128,72 @@ mod tests {
             }),
             PeerResponse::Chunk { .. }
         ));
+    }
+
+    #[test]
+    fn provider_skips_missing_and_corrupt_chunks_but_keeps_manifest_available() {
+        let root = tempfile::tempdir().unwrap();
+        let store = ts_store::ObjectStore::open(root.path()).unwrap();
+        let missing_hash = sha256(b"missing");
+        let corrupt_hash = sha256(b"expected");
+        let corrupt_path = store.object_path(corrupt_hash);
+        std::fs::create_dir_all(corrupt_path.parent().unwrap()).unwrap();
+        std::fs::write(corrupt_path, b"corrupt").unwrap();
+        let tensor_hash = sha256(b"tensor-identity");
+        let manifest = Manifest::new(
+            ts_core::ArtifactFormat::Safetensors,
+            16,
+            vec![ts_core::TensorNode {
+                descriptor: ts_core::TensorDescriptor {
+                    name: "weight".into(),
+                    shape: vec![16],
+                    dtype: "U8".into(),
+                    byte_len: 16,
+                },
+                tensor_hash,
+                chunks: vec![
+                    ts_core::ChunkRef {
+                        index: 0,
+                        offset: 0,
+                        length: 7,
+                        hash: missing_hash,
+                    },
+                    ts_core::ChunkRef {
+                        index: 1,
+                        offset: 7,
+                        length: 9,
+                        hash: corrupt_hash,
+                    },
+                ],
+            }],
+            vec![],
+        );
+
+        let provider = ChunkProvider::from_manifest(&store, &manifest).unwrap();
+        assert!(!provider.has_verified_chunks_for_tensor(&tensor_hash));
+        assert!(matches!(
+            provider.respond(PeerRequest::GetManifest {
+                manifest_hash: manifest.root
+            }),
+            PeerResponse::Manifest { .. }
+        ));
+        for (chunk_index, expected_hash) in [(0, missing_hash), (1, corrupt_hash)] {
+            assert!(matches!(
+                provider.respond(PeerRequest::GetChunks {
+                    tensor_hash,
+                    chunks: vec![ChunkRequest {
+                        request_id: chunk_index as u64,
+                        tensor_hash,
+                        chunk_index,
+                        expected_hash,
+                    }]
+                }),
+                PeerResponse::Error {
+                    code: PeerErrorCode::NotFound,
+                    ..
+                }
+            ));
+        }
     }
 
     #[test]
@@ -1253,7 +1384,7 @@ mod tests {
 
     #[tokio::test]
     async fn two_local_nodes_transfer_a_verified_chunk() {
-        let mut provider = ChunkProvider::default();
+        let provider = ChunkProvider::default();
         let tensor = Hash32([8; 32]);
         let payload = b"layer-zero".to_vec();
         let expected = sha256(&payload);
@@ -1302,8 +1433,28 @@ mod tests {
             )
             .await
             .unwrap();
+        let announced_as_provider =
+            tokio::time::timeout(std::time::Duration::from_millis(200), async {
+                use futures::StreamExt;
+                loop {
+                    if let libp2p::swarm::SwarmEvent::Behaviour(LanBehaviourEvent::Kad(
+                        libp2p::kad::Event::OutboundQueryProgressed { result, .. },
+                    )) = client.swarm.select_next_some().await
+                    {
+                        if matches!(result, libp2p::kad::QueryResult::StartProviding(_)) {
+                            return true;
+                        }
+                    }
+                }
+            })
+            .await
+            .unwrap_or(false);
         server_task.abort();
         assert_eq!(response, b"layer-zero");
+        assert!(
+            !announced_as_provider,
+            "a fetch-only LanClient must not announce itself as a tensor provider"
+        );
         assert_eq!(
             client.metrics(),
             TransferMetricsSnapshot {
@@ -1325,7 +1476,7 @@ mod tests {
         use libp2p::swarm::SwarmEvent;
 
         let tensor = Hash32([7; 32]);
-        let mut provider = ChunkProvider::default();
+        let provider = ChunkProvider::default();
         provider
             .insert_chunk(tensor, 0, sha256(b"dht-payload"), b"dht-payload".to_vec())
             .unwrap();

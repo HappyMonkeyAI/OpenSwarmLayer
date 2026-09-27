@@ -150,13 +150,22 @@ network topology or advanced model features:
 
 1. Finish the desktop-owned engine lifecycle and platform acceptance.
 2. Deliver the end-user model import, verify, publish/seed, and transfer flow.
-3. Add multi-file repository manifests and sharded model support.
-4. Add publisher signatures and trusted repository lineage before relying on
-   publisher identity as a trust signal.
-5. Add NAT traversal and relay deployment when there is a concrete cross-LAN
-   use case and operational plan.
-6. Explore layer-aware prefetch/runtime APIs and dynamic quantization as later,
-   separately scoped tracks.
+3. Define a versioned repository card and release descriptor: human metadata
+   and per-file variants should reference, not redefine, immutable content
+   manifest roots. Resolve multi-file and mixed-format repository support.
+4. Complete the rights, privacy, and abuse threat model—including a
+   counsel-reviewed acceptable-use and notice/appeal process—before public
+   publishing or a global model index is enabled.
+5. Add signed share descriptors and a versioned, magnet-like share-link
+   contract; publisher signatures establish origin/integrity, not legal rights
+   or safety.
+6. Pilot a searchable model directory and peer-rendezvous service. Keep search
+   listings distinct from short-lived provider leases even if one operator runs
+   both. Keep artifact bytes P2P and hash-verified.
+7. Consider federated directories, public DHT announcements, NAT traversal, and
+   relays only after the moderated pilot proves its abuse, privacy, revocation,
+   and operating procedures. Explore layer-aware prefetch and dynamic
+   quantization as separate later tracks.
 
 ### Desktop application direction
 
@@ -198,3 +207,31 @@ control surface. The daemon must remain usable without the desktop shell for
 headless and server deployments. Tauri sidecar packaging is a candidate
 implementation for desktop-owned lifecycle, not an architectural requirement;
 evaluate process supervision and packaging constraints before choosing it.
+
+### Model publication and discovery direction
+
+The future sharing product should feel like a model repository, not a generic
+file host: a searchable card describes a logical model and its lineage, while
+each release lists concrete GGUF/Safetensors files, shards, and quantized
+variants linked to their verified manifest roots. License/provenance values
+must distinguish publisher claims from independently reviewed status.
+
+Use two discovery concepts: a directory for model/release search and a tracker-
+like rendezvous for peers currently serving a known descriptor or artifact
+root. Existing Kademlia provider lookup is hash-keyed and remains a transport
+hint; it does not provide human-oriented catalog search. The local-only core
+contract now signs a versioned descriptor and identifies the exact envelope as
+`tswarm://v1/<sha256>`. This URI is not resolved or fetched; public directory/
+tracker hints, resolution, revocation semantics, and signer-key management
+remain design and implementation gates.
+
+Public publishing is gated on explicit rights attestations, a content policy,
+reporting and takedown review, appeal handling, delisting/revocation behavior,
+rate limits, security scanning, and privacy/retention decisions. Hashes, format
+parsers, and signatures do not certify legality or safety. See
+[`docs/model-discovery-publication-and-abuse.md`](docs/model-discovery-publication-and-abuse.md)
+for research, proposed metadata, service boundaries, acceptance gates, and open
+owner/legal decisions. The companion
+[`docs/model-sharing-abuse-policy-draft.md`](docs/model-sharing-abuse-policy-draft.md)
+is explicitly unapproved and must receive owner and qualified legal review
+before any public directory/tracker work is enabled.
