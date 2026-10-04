@@ -33,6 +33,25 @@ tray behaviour also need further testing. The exact evidence is in
 
 ## Getting started
 
+### Using npx (Node.js 20+)
+
+A small npm-compatible wrapper downloads and verifies the native app; Node.js
+does not run its model-sharing engine. The wrapper is available as a tarball
+on the GitHub beta release:
+
+```sh
+npx --package=https://github.com/SPhillips1337/OpenSwarmLayer/releases/download/v0.1.1-beta.1/openswarmlayer-0.1.1-beta.1.tgz openswarmlayer install
+```
+
+Use `download` instead of `install` to fetch a verified package without installing.
+On Linux, `download --format appimage` selects the portable AppImage.
+Windows installation opens its normal installer; Linux DEB installation uses
+apt/sudo. No app is installed merely by adding the npm package or requesting help.
+
+The shorter `npx openswarmlayer@beta install` command is **pending npm registry
+publication**, which needs an authenticated maintainer. See
+[the npm wrapper guide](npm/README.md) for details. Platform limits below apply.
+
 The [v0.1.1-beta.1 technical test release](https://github.com/SPhillips1337/OpenSwarmLayer/releases/tag/v0.1.1-beta.1)
 provides a Windows x64 installer and experimental Linux x64 DEB/AppImage
 packages. Linux builds target Ubuntu 24.04-era systems and

@@ -255,3 +255,12 @@ headless startup in extraction and normal FUSE modes. Packages require glibc
 2.39 or newer; older Deepin is unsupported by this build. Release additions and
 checksums are recorded in PROGRESS.md. Native installed Linux UI, signing-store,
 tray and sharing acceptance remain open; headless health checks do not close them.
+
+### npm/npx distribution (2026-10-04)
+
+IN_PROGRESS: dependency-free npm/ wrapper prepared for openswarmlayer@0.1.1-beta.1.
+Eleven boundary/integration tests and publish dry-run pass; packed npm exec binary
+performed real checksum-verified Windows installer and Linux AppImage downloads
+without installation. npm registry publication requires authenticated maintainer
+access (npm whoami returns E401). GitHub tarball distribution/readback is recorded
+in PROGRESS.md; no registry publication is claimed before verification.

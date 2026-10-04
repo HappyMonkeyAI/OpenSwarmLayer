@@ -148,6 +148,13 @@ networking or engine services. Checksums share the release's trust boundary;
 they are not independent signatures. See `docs/releasing.md` for asset naming,
 private-repository limitations and the reviewed-commit/tag workflow.
 
+The dependency-free npm wrapper is distribution glue only: its npx executable
+downloads a pinned native release with embedded SHA-256/size checks and invokes
+the platform installer on an explicit install action. There are no install
+lifecycle hooks or model/network engine implementations in JavaScript. The npm
+package version may differ from its pinned native release; npm/release.json
+records the exact native source commit and package hashes.
+
 A 2026-10-03 live CLI test carried the existing libp2p protocol through accountless
 Cloudflare Quick Tunnels without changing TensorSwarm transport code. On the seed,
 run `cloudflared tunnel --no-autoupdate --url tcp://127.0.0.1:<peer-tcp-port>`.

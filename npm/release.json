@@ -1,0 +1,24 @@
+{
+  "tag": "v0.1.1-beta.1",
+  "sourceCommit": "dec8e5099e782c9ddd6be75e8fecb3d65907989f",
+  "assets": {
+    "exe": {
+      "platform": "win32",
+      "name": "OpenSwarmLayer-v0.1.1-beta.1-windows-x64-setup.exe",
+      "size": 5678246,
+      "sha256": "880bf10491259d2568f43b203bd6611524d06239922cf7daab41e693c0f94e3d"
+    },
+    "deb": {
+      "platform": "linux",
+      "name": "OpenSwarmLayer-v0.1.1-beta.1-linux-amd64.deb",
+      "size": 11145498,
+      "sha256": "1cc92bd27bd285581633cf5a60be31aa692bcf9e10a24b2848662e7c2fa999c9"
+    },
+    "appimage": {
+      "platform": "linux",
+      "name": "OpenSwarmLayer-v0.1.1-beta.1-linux-x86_64.AppImage",
+      "size": 85273080,
+      "sha256": "a6be8295b1b11f17d8f0f750a45eebc1e384ba26623cb92727bb72650cf62ac6"
+    }
+  }
+}

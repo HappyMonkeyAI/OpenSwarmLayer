@@ -120,5 +120,31 @@ GitHub release and are not an independent publisher signature. HTTPS and the
 repository/release account remain trust boundaries. Windows packages are
 currently unsigned; the scripts do not suppress operating-system warnings.
 
+## npm wrapper distribution
+
+The native app remains Rust/Tauri. `npm/` is a small dependency-free wrapper,
+with no automatic install hooks. It downloads assets pinned in release.json and
+invokes the native installer only for an explicit `install` command. Node.js 20+
+is required. Test with `npm test --prefix npm`; inspect the allowlisted package
+with `npm pack ./npm --dry-run`, then test the actual tarball through npm exec.
+
+Publish with authenticated maintainer access:
+
+```sh
+npm login --registry=https://registry.npmjs.org
+npm publish ./npm --tag beta --access public
+```
+
+The desired registry command is `npx openswarmlayer@beta install`; registry
+publication is pending login. Do not claim this command works until registry
+readback confirms the version and beta dist-tag. npm may require maintainer 2FA;
+do not store credentials in the repository. See
+[npm publishing authentication](https://docs.npmjs.com/requiring-2fa-for-package-publishing-and-settings-modification/).
+
+The same npm tarball can be attached to the GitHub release and run with
+`npx --package=<public-tarball-URL> openswarmlayer install`; see npm/README.md.
+Preserve the existing native tag and assets. Record the wrapper source in a
+separate npm-version tag, and extend SHA256SUMS with the tarball hash.
+
 GitHub supports tagged release assets and pre-release status; see the
 [official release documentation](https://docs.github.com/en/rest/releases/releases).
