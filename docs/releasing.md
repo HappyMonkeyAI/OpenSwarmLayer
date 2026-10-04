@@ -148,3 +148,5 @@ separate npm-version tag, and extend SHA256SUMS with the tarball hash.
 
 GitHub supports tagged release assets and pre-release status; see the
 [official release documentation](https://docs.github.com/en/rest/releases/releases).
+
+For npm 12 URL packages, add `--allow-remote=root` immediately after `npx`. This permits the explicitly selected remote package for this command without changing your npm configuration.

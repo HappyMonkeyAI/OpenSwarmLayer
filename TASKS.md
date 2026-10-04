@@ -258,7 +258,7 @@ tray and sharing acceptance remain open; headless health checks do not close the
 
 ### npm/npx distribution (2026-10-04)
 
-IN_PROGRESS: dependency-free npm/ wrapper prepared for openswarmlayer@0.1.1-beta.1.
+GitHub distribution DONE: dependency-free npm/ wrapper openswarmlayer@0.1.1-beta.2 published as a release tarball with separate npm source tag. Registry publication remains pending authentication.
 Eleven boundary/integration tests and publish dry-run pass; packed npm exec binary
 performed real checksum-verified Windows installer and Linux AppImage downloads
 without installation. npm registry publication requires authenticated maintainer

@@ -240,3 +240,5 @@ or model files in a report.
 
 The software is licensed under [MIT](LICENSE). Model files have their own
 licenses; the software's license does not grant permission to redistribute them.
+
+For npm 12 URL packages, add `--allow-remote=root` immediately after `npx`. This permits the explicitly selected remote package for this command without changing your npm configuration.
