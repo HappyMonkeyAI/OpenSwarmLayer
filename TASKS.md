@@ -244,4 +244,14 @@ DONE for tag/publication on 2026-10-04: Windows-only v0.1.1-beta.1 pre-release
 published with installer, scripts and checksums; authenticated download readback
 matched all four uploaded assets. See PROGRESS.md. Hosted script
 installation, production-profile upgrade and native Linux package acceptance
-remain open; the repository is private, so anonymous script downloads cannot run.
+remain open. Later Linux additions/public visibility readback are recorded below.
+
+### Linux beta package additions (2026-10-04)
+
+DEB and AppImage built from exact v0.1.1-beta.1 source on Ubuntu 24.04 WSL.
+Package metadata/content and glibc/library preflight pass; both start their
+engines under isolated Xvfb profiles in WSL. AppImage also passes native Mint
+headless startup in extraction and normal FUSE modes. Packages require glibc
+2.39 or newer; older Deepin is unsupported by this build. Release additions and
+checksums are recorded in PROGRESS.md. Native installed Linux UI, signing-store,
+tray and sharing acceptance remain open; headless health checks do not close them.

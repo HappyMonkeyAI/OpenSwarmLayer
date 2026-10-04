@@ -1,10 +1,15 @@
 # Tagged technical beta releases
 
-The first release is `v0.1.1-beta.1`, a **Windows-only technical pre-release**.
-The repository remains private. Invited testers can download the installer from
-the signed-in GitHub release page. Anonymous `curl`/`irm` commands will not work
-while release assets are private; the scripts do not handle authentication.
-This workflow does not change visibility. No Linux DEB is included in beta 1.
+The first release is `v0.1.1-beta.1`, a **technical pre-release** with Windows
+and experimental Linux x64 packages built from the same tagged source.
+GitHub now reports the repository as public; release downloads are accessible
+without signing in. Publication of these files does not establish production
+readiness. The scripts do not handle authentication for private repositories.
+Linux packages require glibc 2.39 or
+newer and target an Ubuntu 24.04 baseline; they are not older-Deepin compatible.
+DEB contents/dependencies and headless startup passed in WSL. AppImage headless
+startup passed in WSL and native Mint, including normal FUSE mode on Mint.
+Native Linux install/UI/tray/sharing acceptance remains open.
 
 ## Version and asset contract
 
@@ -20,14 +25,16 @@ Each release carries these assets:
 | --- | --- |
 | `OpenSwarmLayer-v0.1.1-beta.1-windows-x64-setup.exe` | Production-identity Windows NSIS installer |
 | `OpenSwarmLayer-v0.1.1-beta.1-linux-amd64.deb` | Optional native Linux DEB, only when built and checked |
+| `OpenSwarmLayer-v0.1.1-beta.1-linux-x86_64.AppImage` | Experimental portable Linux x64 app; still subject to host-library compatibility |
 | `install.ps1` | Windows installer script from the tagged commit |
 | `install.sh` | Debian/Ubuntu-family Linux installer script from the tagged commit |
-| `SHA256SUMS` | SHA-256 hashes followed by two spaces and the exact asset filename |
+| `SHA256SUMS` | ASCII SHA-256 hashes, two spaces, exact filename and Unix LF line endings |
 
 The scripts accept only explicit `vX.Y.Z-beta.N` tags. They do not choose a
 moving "latest" build. Each script's default version must match its release.
 Do not advertise the Linux command when that release has no Linux package.
 Other architectures, macOS and RPM-based Linux are not supported by these scripts.
+The Linux script installs the DEB; AppImage is a manual download/run option.
 
 ## Prepare a release
 
@@ -55,7 +62,7 @@ Other architectures, macOS and RPM-based Linux are not supported by these script
        Where-Object Name -ne 'SHA256SUMS' |
        Sort-Object Name |
        ForEach-Object { '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name }
-   [IO.File]::WriteAllLines((Join-Path $releaseDir 'SHA256SUMS'), [string[]]$lines, [Text.Encoding]::ASCII)
+   [IO.File]::WriteAllText((Join-Path $releaseDir 'SHA256SUMS'), ($lines -join "`n") + "`n", [Text.Encoding]::ASCII)
    ```
 
 6. Confirm `git status --short` is empty. Tag the reviewed commit and push the
@@ -85,8 +92,7 @@ upgrade and native Linux desktop acceptance still have gaps.
 
 ## Install commands after publishing
 
-These commands require public access to the `v0.1.1-beta.1` release assets;
-**they will not work anonymously while the repository is private**.
+These commands use the public `v0.1.1-beta.1` release assets.
 They execute a remote script. Download and read the script first if you want to
 inspect it before execution. The pinned tag makes the selected beta explicit.
 

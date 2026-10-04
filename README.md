@@ -34,16 +34,46 @@ tray behaviour also need further testing. The exact evidence is in
 ## Getting started
 
 The [v0.1.1-beta.1 technical test release](https://github.com/SPhillips1337/OpenSwarmLayer/releases/tag/v0.1.1-beta.1)
-provides a Windows x64 installer. This repository remains private: invited
-testers must sign in to GitHub to download it. No Linux package is included in
-this release because current native Linux acceptance is incomplete.
+provides a Windows x64 installer and experimental Linux x64 DEB/AppImage
+packages. Linux builds target Ubuntu 24.04-era systems and
+require glibc 2.39 or newer; they do not support the older Deepin host yet.
 
 [install.ps1](install.ps1) and [install.sh](install.sh) download a specific beta
-and check its SHA-256 before installation. They require anonymously accessible
-release assets and do not handle private-repository authentication, so the
-one-line commands are not usable for this private release. Download the Windows
-installer manually from its release page instead. See
-[tagged beta releases](docs/releasing.md) for the commands and release checklist.
+and check its SHA-256 before installation. You can download packages manually
+from the release page, or use the versioned commands below. These commands
+execute a remote script; download and read it first if you want to inspect it.
+See [tagged beta releases](docs/releasing.md) for download-only options and the
+release checklist.
+
+Windows PowerShell:
+
+```powershell
+irm https://github.com/SPhillips1337/OpenSwarmLayer/releases/download/v0.1.1-beta.1/install.ps1 | iex
+```
+
+Debian/Ubuntu-family Linux x64:
+
+```sh
+curl --proto '=https' --proto-redir '=https' -fsSL https://github.com/SPhillips1337/OpenSwarmLayer/releases/download/v0.1.1-beta.1/install.sh | bash
+```
+
+On compatible Debian/Ubuntu-family Linux, install the downloaded DEB with:
+
+```sh
+sudo apt install ./OpenSwarmLayer-v0.1.1-beta.1-linux-amd64.deb
+```
+
+Alternatively, make the AppImage executable and run it:
+
+```sh
+chmod +x OpenSwarmLayer-v0.1.1-beta.1-linux-x86_64.AppImage
+./OpenSwarmLayer-v0.1.1-beta.1-linux-x86_64.AppImage
+```
+
+If FUSE is unavailable, try the AppImage with `--appimage-extract-and-run`.
+Package contents and isolated engine startup were checked in WSL; AppImage
+startup also passed on native Mint. Full native Linux installation, desktop
+controls, signing-key storage, tray and sharing acceptance remain open.
 
 For this beta, start with a small test model that you have permission to share
 and two computers you control. Allow disk space for the imported model, verified
