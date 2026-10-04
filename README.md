@@ -1,165 +1,193 @@
-# TensorSwarm
+# OpenSwarmLayer / TensorSwarm
 
-TensorSwarm is an experimental, tensor-native P2P distribution engine for GGUF and Safetensors model artifacts.
+Share LLM model files directly between computers, and let each recipient share
+those files onward. The aim is a model-sharing desktop app with a workflow
+similar to BitTorrent, using verified pieces of GGUF and Safetensors files.
+OpenSwarmLayer is the desktop app; TensorSwarm is the Rust engine behind it.
 
-## MVP status
+> **Technical test beta — not ready for public release.**
+> This project is still being developed and tested. It is intended for developers
+> and invited testers who are comfortable building software and troubleshooting
+> connections. The interface, setup and network support are unfinished. Please
+> do not rely on it for production use or treat it as a finished model service.
 
-The local end-to-end MVP is accepted with limitations. The implemented vertical slice is:
+## What can I try today?
 
-```text
-parse -> manifest -> verified cache -> LAN transfer -> HTTP/WebSeed proxy
+You can import a model on one computer, download it on another, and then share
+it from the recipient after the original sender stops. The app checks each
+piece against the model's manifest before storing it, then checks the assembled
+file before adding it to the local library.
+
+Sharing currently takes some manual setup: you exchange two small metadata
+files, a share identifier, and the sender's connection details. There is no
+public model catalogue or automatic internet connection setup. A `tswarm://`
+identifier identifies the signed metadata; clicking it does not start a download.
+
+Windows desktop testing has demonstrated download, restart persistence and
+re-sharing through temporary Cloudflare tunnels, with the final file matching
+every byte of the source. The other peer used the Linux CLI, and both computers
+were on the same local network. Testing with independent users on separate
+internet connections is still pending. Native Linux desktop installation and
+tray behaviour also need further testing. The exact evidence is in
+[PROGRESS.md](PROGRESS.md).
+
+## Getting started
+
+The [v0.1.1-beta.1 technical test release](https://github.com/SPhillips1337/OpenSwarmLayer/releases/tag/v0.1.1-beta.1)
+provides a Windows x64 installer. This repository remains private: invited
+testers must sign in to GitHub to download it. No Linux package is included in
+this release because current native Linux acceptance is incomplete.
+
+[install.ps1](install.ps1) and [install.sh](install.sh) download a specific beta
+and check its SHA-256 before installation. They require anonymously accessible
+release assets and do not handle private-repository authentication, so the
+one-line commands are not usable for this private release. Download the Windows
+installer manually from its release page instead. See
+[tagged beta releases](docs/releasing.md) for the commands and release checklist.
+
+For this beta, start with a small test model that you have permission to share
+and two computers you control. Allow disk space for the imported model, verified
+cache and downloaded output. Windows has the most complete desktop test coverage.
+
+If you have been given a test installer, install and launch OpenSwarmLayer.
+Current Windows test installers are unsigned. The app starts its local engine
+automatically; you do not need to start a separate daemon.
+
+To build from source, you need Rust and the native build dependencies for
+Tauri 2 on your operating system. Windows requires the Microsoft C++ build tools
+and WebView2 runtime; Linux requires its Tauri/WebKit system dependencies.
+The desktop UI is plain HTML and JavaScript, so there is no npm build step.
+
+From the repository root:
+
+```sh
+cargo build --workspace
+cd desktop/src-tauri
+cargo run
 ```
 
-M0 through M3 and M5 are complete. M4's explicit localhost proxy, LAN fetch,
-HTTPS WebSeed fallback, complete-file preparation, and verification paths are
-implemented and tested. Transparent `HTTP_PROXY`/`HTTPS_PROXY` rewriting is
-deferred as post-MVP work.
+To make a Windows installer, install the Tauri CLI and build from
+`desktop/src-tauri`:
 
-## Desktop application status
-
-The Windows Tauri desktop app starts the local Rust engine automatically; users
-do not need to start a daemon in a terminal. The engine exposes its authenticated
-control API on loopback port 9090 and its model proxy on port 9091, and stores its
-cache under the application data directory. Closing the main window hides the
-app; the tray menu provides Show and Quit actions. The overview and local-engine
-retry flow are implemented. The desktop has GGUF/Safetensors file and
-recursive-folder import controls.
-Windows debug acceptance verified file/folder selection, verified import,
-byte-identical preparation, and an independent P2P chunk fetch. The current
-unsigned Windows NSIS package was clean-installed and accepted through first
-launch, Safetensors and GGUF fixture import/verification, byte-identical
-preparation, process-restart persistence, uninstall readback, occupied-port
-recovery, close-to-background, and native tray-menu Quit shutdown. Its
-independent CLI fetch exited successfully, but the payload/hash comparison was
-not retained, so it is not counted as verified package transfer. An Ubuntu
-WSLg run of the packaged DEB verified visible model import/state, restart
-persistence, and an independent 23-byte P2P fetch whose hash and bytes matched
-the source tensor range. A current-source Deepin DEB built on 2026-09-27 and passed package metadata,
-dependency, and GLIBC 2.38 preflight checks; installation/removal remains
-sudo-gated. A later isolated extracted-package launch could not be read back
-after SSH to Deepin timed out. WSLg is not native Linux acceptance. Native Linux
-install/runtime/tray acceptance remains open. See [TASKS.md](TASKS.md) and
-[PROGRESS.md](PROGRESS.md) for evidence and open gates. Headless
-`ts-daemon` and `ts-cli` workflows remain available for server/operator use.
-Internet-wide model search, share links, and public tracker/rendezvous are not
-implemented; public publishing is planned behind rights, abuse, and privacy
-gates. See the [research and roadmap note](docs/model-discovery-publication-and-abuse.md).
-For a locally exchanged signed `.tsrelease` bundle and its separately supplied
-single-file `.tswarm` manifest, an operator can check their binding with
-`ts-cli verify-release bundle.tsrelease model.tswarm [tswarm://v1/<digest>]`.
-Desktop signed-bundle export stages and reads back the bundle, then commits it
-without replacing an existing destination.
-In the desktop Model library, select an imported model and use "Export selected
-.tswarm manifest" to save that model's manifest separately from its signed
-release bundle. Export refuses to overwrite an existing file. The manifest
-contains metadata and chunk hashes, not model bytes or a network address.
-CLI verification checks the self-asserted signature, optional exact share identifier, and
-manifest metadata/root; it does not fetch or validate the model bytes, establish
-publisher identity or rights, or make the identifier a download link.
-For an offline recipient inbox, use
-`ts-cli receive-release bundle.tsrelease model.tswarm <inbox-dir> [tswarm://v1/<digest>]`.
-It saves the checked release and manifest together under the immutable release
-ID, rejects different existing records, and does not add a model to the active
-library or trust its bytes. Pass the optional identifier when one was supplied
-through a separate channel to bind the exchange to that exact signed envelope.
-With an explicitly supplied LAN peer ID/address, a recipient can then run
-`ts-cli fetch-received <inbox-dir>/<release-id> <peer-id> <peer-address> <store-root> <output>`.
-This rechecks the signed record and manifest before fetching its referenced
-chunks, stores only hash-verified bytes, and prepares the single file. It uses
-an independent recipient cache and refuses existing output/partial files.
-Preparation stages beside the destination and commits with a no-replace
-hard-link; it fails closed without overwriting a file created while fetching.
-The destination filesystem must support hard links.
-Peer identity and address must be supplied out of band; this is not discovery,
-a trust decision about publisher identity, or a public sharing service.
-The desktop Model library also has a private recipient-inbox action: optionally
-enter the independently received `tswarm://` identifier, then choose the signed
-bundle and matching `.tswarm` manifest. It saves checked metadata under app
-data `models/inbox/<release-id>/` without adding a model to the active library.
-The desktop rechecks every stored signature, manifest binding, and record ID on
-startup or "Refresh inbox" before listing receipts; a changed record produces an
-inbox error rather than a partial list. Interrupted staging directories are not
-receipts. This does not verify model bytes. An isolated Windows debug acceptance
-used the native pickers to save a metadata-only receipt and read it back after
-app restart; the active library remained unchanged and no bytes were fetched.
-This is not an independent-user pilot, packaged-install acceptance, or Linux
-Secret Service acceptance. A browser fixture separately exercised refresh,
-escaped display, and the verification-error state.
-
-See [ROADMAP.md](ROADMAP.md) for the ordered next development slices,
-[SPEC.md](SPEC.md) for product/protocol requirements, [PLAN.md](PLAN.md) for
-milestone strategy, and [TASKS.md](TASKS.md) for the executable task board.
-See [docs/demo.md](docs/demo.md) for clean-checkout two-node demonstration steps.
-See [docs/benchmarks.md](docs/benchmarks.md) for the measured primitive benchmark snapshot.
-See [docs/owner-adversary-review.md](docs/owner-adversary-review.md) for the current MVP gate review.
-See [PROGRESS.md](PROGRESS.md) for the current continuation handoff.
-
-To run a seeding node from a manifest and verified chunk store:
-
-```text
-ts-cli node model.tswarm .tswarm-cache
+```sh
+cargo install tauri-cli --version '^2' --locked
+cargo tauri build --bundles nsis
 ```
 
-To run the manifest-aware localhost proxy with HTTPS WebSeed fallback:
+The installer is written under `target/release/bundle/nsis/` in the repository.
+Build your own current package rather than assuming an older test installer
+contains the latest changes.
 
-```text
-ts-cli proxy-manifest model.tswarm .tswarm-cache https://model.example/model.safetensors
-ts-cli proxy-manifest 127.0.0.1:9090 model.tswarm .tswarm-cache https://model.example/model.safetensors
-# Optional LAN peer: <peer-id> <multiaddress>
-ts-cli proxy-manifest 127.0.0.1:9090 model.tswarm .tswarm-cache https://model.example/model.safetensors <peer-id> <multiaddress>
-```
+## Share a model
 
-Clients must request `http://127.0.0.1:9090/file/<manifest-path>` directly. Transparent
-`HTTP_PROXY`/`HTTPS_PROXY` origin-url rewriting is intentionally out of scope for the MVP;
-the explicit localhost URL avoids hidden routing and environment-dependent behavior.
+### On the sender's computer
 
-### Python client example
+1. Open **Model library**, choose **Import file**, and select a GGUF or
+   Safetensors file. Start with one file and one format.
+2. Wait until the model shows **100% verified availability** and the local
+   engine is online.
+3. In **Settings**, use **Create local signing key** if you do not already have
+   one. The key stays in the operating system's credential store. Key backup
+   and rotation are not available yet.
+4. Select the model. Use **Export selected .tswarm manifest**, then fill in the
+   signed descriptor fields and choose **Sign and export bundle** to save its
+   `.tsrelease` file. Choose new filenames; export does not overwrite files.
+5. Send the recipient both metadata files and the resulting `tswarm://`
+   identifier. In **Peers & sources**, copy your current peer ID and a reachable
+   listening address and send those too. Keep the app running while they download.
 
-The supported client integration uses the proxy URL explicitly. This works with
-`requests` and preserves normal range requests used by model loaders:
+The `.tswarm` file describes the model and its pieces; the `.tsrelease` file
+contains signed release metadata. Neither contains the model's weights.
+A signature helps check that metadata has not changed; it does not prove a
+publisher's real identity, redistribution rights or a model's safety.
 
-```python
-import requests
+### On the recipient's computer
 
-proxy_file = "http://127.0.0.1:9090/file/model.safetensors"
-with requests.get(proxy_file, stream=True, timeout=30) as response:
-    response.raise_for_status()
-    with open("model.safetensors", "wb") as output:
-        for block in response.iter_content(chunk_size=1024 * 1024):
-            if block:
-                output.write(block)
-```
+1. Open **Model library**. Under **Private recipient inbox**, enter the received
+   identifier in **Expected identifier received separately**.
+2. Choose **Choose signed bundle, then matching manifest** and select the two
+   files from the sender. This saves checked metadata; it has not downloaded
+   the model yet.
+3. Choose **Download from peer**, enter the sender's current peer ID and
+   reachable address, and select a new output filename.
+4. Wait for the download to complete. Confirm **100% verified availability**
+   and an online engine before sharing it onward.
 
-Do not set `HTTP_PROXY` or `HTTPS_PROXY` and expect arbitrary origin URLs to be
-rewritten yet; transparent environment-variable integration is not implemented.
+For a local-network test, use a reachable address such as
+`/ip4/192.168.1.20/tcp/50000`, replacing the IP and port with the sender's actual
+values. An address beginning with `127.0.0.1` refers to your own computer and
+only works for a local connection or a deliberately configured tunnel.
 
-## Local verification
+For a temporary internet relay, follow the tested
+[Cloudflare TCP bridge instructions](docs/private-beta.md#temporary-cloudflare-tcp-bridge).
+The app does not create or manage these tunnels. Keep the local control API
+private; the tunnel should expose only the peer listener.
 
-Once Rust is installed, run:
+### Check that re-sharing works
 
-```text
+Stop the original sender. On the recipient, read its current peer ID and
+listening address from **Peers & sources**, then use a third peer with a fresh
+cache to download from it. Compare the final file with the source. This is the
+core beta test: the downloaded model should remain available from its recipient.
+Connection details can change after the engine restarts, so read them again.
+
+For the full test procedure and CLI commands, see
+[the beta testing guide](docs/private-beta.md).
+
+## Current limits
+
+- One private download runs at a time. Cancellation works during fetching;
+  verified partial pieces remain available for retry, including after restart.
+- Output filenames must be new, and the destination filesystem must support
+  hard links. Existing files are not overwritten.
+- A library currently needs one artifact format and rejects conflicting model
+  paths. Mixed-format libraries and complete multi-file model repositories
+  need more work.
+- Download caches have no automatic quota or cleanup. Watch disk usage.
+- There is no public tracker, model search, automatic NAT traversal or integrated
+  relay. Connecting across the internet requires additional network setup.
+- The interface still needs polish. Native Linux desktop, desktop-to-desktop,
+  independent-user and separate-network acceptance remain open.
+
+On Windows, closing the main window leaves the app running in the background.
+Use **Quit** from its tray menu to stop it. This behaviour has earlier Windows
+acceptance evidence; native Linux tray behaviour is still unverified.
+
+## CLI and developer notes
+
+The Rust CLI and daemon are available for technical testing and headless use.
+See [docs/demo.md](docs/demo.md) for peer/proxy examples. A manifest alone cannot
+seed a model: the sender also needs a populated, verified chunk store.
+
+The localhost model proxy supports explicit file URLs and HTTP byte ranges,
+with HTTPS fallback. Transparent rewriting through `HTTP_PROXY` or `HTTPS_PROXY`
+is deferred. The desktop uses loopback ports 9090 for its authenticated control
+API and 9091 for the model proxy.
+
+To check a source checkout:
+
+```sh
 cargo fmt --all -- --check
 cargo check --workspace
 cargo test --workspace
 ```
 
-Do not call the MVP complete until the owner/adversary verification tasks in `TASKS.md` have passed.
+When reporting a test problem, include your operating system, build or commit,
+the steps you took, and the error shown. Do not include private keys, credentials
+or model files in a report.
 
-## Agents Protocol integration
+## Project documentation
 
-This application adopts the project-shaped Agents Protocol spine for grounding, MCP intent routing, isolated parallel work, and independent acceptance. Start with [AGENTS.md](AGENTS.md) and [BOOTSTRAP.md](BOOTSTRAP.md); machine-local discovery belongs in ignored `MCP.local.md`.
+- [Beta testing guide](docs/private-beta.md): desktop steps, temporary tunnels and remaining test gates.
+- [Tagged beta releases](docs/releasing.md): versioned packages, install scripts and release preparation.
+- [Roadmap](ROADMAP.md): what comes next.
+- [Tasks](TASKS.md) and [progress log](PROGRESS.md): outstanding work and dated test evidence.
+- [Architecture](ARCHITECTURE.md) and [specification](SPEC.md): how the Rust components work and the protocol requirements.
+- [Benchmarks](docs/benchmarks.md) and [adversarial review](docs/owner-adversary-review.md): measurements and verification limits.
+- [Discovery and publication plans](docs/model-discovery-publication-and-abuse.md): future catalogue/rendezvous work and its policy gates.
+- [Agent instructions](AGENTS.md): contributor workflow; see also [CONTEXT.md](CONTEXT.md), [MCP.md](MCP.md) and [PLAN.md](PLAN.md).
 
-## Documentation spine
+## License
 
-- [AGENTS.md](AGENTS.md) — agent behavior and Verification Ladder
-- [MCP.md](MCP.md) — intent-to-tool routing
-- [CONTEXT.md](CONTEXT.md) — project context and constraints
-- [SPEC.md](SPEC.md) — externally observable MVP contract
-- [ARCHITECTURE.md](ARCHITECTURE.md) — component boundaries and data flow
-- [DESIGN.md](DESIGN.md) — implementation design
-- [PLAN.md](PLAN.md) — milestones and gates
-- [ROADMAP.md](ROADMAP.md) — ordered next slices and acceptance focus
-- [TASKS.md](TASKS.md) — task board and acceptance criteria
-- [PROGRESS.md](PROGRESS.md) — dated implementation and verification evidence
-- [docs/model-discovery-publication-and-abuse.md](docs/model-discovery-publication-and-abuse.md) — proposed model-card, directory/tracker, and abuse-resilience direction
-- [docs/model-sharing-abuse-policy-draft.md](docs/model-sharing-abuse-policy-draft.md) — DRAFT only; pending owner and qualified legal review
+The software is licensed under [MIT](LICENSE). Model files have their own
+licenses; the software's license does not grant permission to redistribute them.

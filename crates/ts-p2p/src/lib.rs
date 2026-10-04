@@ -583,7 +583,19 @@ pub async fn run_lan_node_with_provider_and_events(
     swarm: &mut LanSwarm,
     provider: ChunkProvider,
     listen_tx: &mut Option<tokio::sync::oneshot::Sender<libp2p::Multiaddr>>,
+    publish_rx: Option<&mut tokio::sync::mpsc::Receiver<Hash32>>,
+) -> anyhow::Result<()> {
+    run_lan_node_with_provider_and_listeners(swarm, provider, listen_tx, publish_rx, None).await
+}
+
+pub type ListenAddresses = Arc<std::sync::Mutex<Vec<libp2p::Multiaddr>>>;
+
+pub async fn run_lan_node_with_provider_and_listeners(
+    swarm: &mut LanSwarm,
+    provider: ChunkProvider,
+    listen_tx: &mut Option<tokio::sync::oneshot::Sender<libp2p::Multiaddr>>,
     mut publish_rx: Option<&mut tokio::sync::mpsc::Receiver<Hash32>>,
+    listen_addresses: Option<ListenAddresses>,
 ) -> anyhow::Result<()> {
     use futures::StreamExt;
     let provider = provider;
@@ -607,9 +619,25 @@ pub async fn run_lan_node_with_provider_and_events(
         };
         match event {
             libp2p::swarm::SwarmEvent::NewListenAddr { address, .. } => {
+                if let Some(addresses) = &listen_addresses {
+                    let mut addresses = addresses
+                        .lock()
+                        .map_err(|_| anyhow::anyhow!("listen address state unavailable"))?;
+                    if addresses.len() < 64 && !addresses.contains(&address) {
+                        addresses.push(address.clone());
+                    }
+                }
                 println!("listen: {address}");
                 if let Some(sender) = listen_tx.take() {
                     let _ = sender.send(address);
+                }
+            }
+            libp2p::swarm::SwarmEvent::ExpiredListenAddr { address, .. } => {
+                if let Some(addresses) = &listen_addresses {
+                    addresses
+                        .lock()
+                        .map_err(|_| anyhow::anyhow!("listen address state unavailable"))?
+                        .retain(|known| known != &address);
                 }
             }
             libp2p::swarm::SwarmEvent::Behaviour(LanBehaviourEvent::Mdns(event)) => match event {

@@ -1,12 +1,69 @@
 # TensorSwarm progress handoff
 
-Last updated: 2026-09-27
+Latest continuation: 2026-10-03. The dated entries at the end of this file record
+native Windows private download/re-seeding, Cloudflare TCP relay acceptance,
+and the CLI layout-verification fix. Current working source is uncommitted;
+separate-network and current-package acceptance remain open. The summary below
+is the earlier 2026-09-28 handoff, retained as historical context.
+
+Last updated: 2026-09-28
 Branch: master
 Baseline HEAD at slice start: `3194bfc` (`master` was nine commits ahead of `origin/master`)
 This handoff records local verification and a current-source native Deepin package/runtime smoke; existing modified files and untracked `scripts/` preserved, no commit or push performed
 
 ## Completed this session
 
+- Validated this host's Ubuntu WSL2 as a Linux CLI/client test lane. Rust/Cargo
+  1.98.1 built and ran `ts-cli` from the mounted checkout using a task-owned
+  `/tmp` target directory. `cargo test -p ts-p2p` passed all 15 tests, including
+  local-node chunk transfer, DHT discovery, cancellation, and malformed-peer
+  rejection. Linux `ts-cli verify-release` accepted the signed descriptor with
+  its matching manifest and rejected a mismatched manifest, altered signature,
+  and wrong share identifier. `receive-release` wrote one metadata-only record;
+  readback confirmed the saved bundle exactly matched the source. This is same-
+  operator/same-host evidence, not the independent-user pilot or a model-byte
+  fetch. WSL could reach the test desktop's P2P TCP listener, but the current
+  desktop library was empty, so no live chunk exchange occurred.
+- On the extracted Deepin desktop, the signed-release export UI saved a test
+  `.tsrelease`; local CLI verification confirmed the bundle/manifest match and
+  rejected tampering. The native import picker did not complete: it displayed
+  an empty list and “File or directory not found” despite the file's presence.
+  The extracted app's local health endpoint returned 200, and its control
+  listener remained loopback-only. Do not count this as native import-preview,
+  package-install, or tray acceptance.
+- On 2026-09-28, the extracted Deepin app's ordinary model-file importer
+  imported `native-model-b.safetensors` (75 bytes). The library count changed
+  from 0 to 1 and the row showed 100% availability and `Verified`. This proves
+  ordinary local model import/readback; the separate signed-release recipient
+  result is recorded below.
+  The first signed-release chooser attempt hit a stale search filter and lost
+  focus. After relaunching the test-owned app with isolated XDG paths, the UI
+  selected the 715-byte `TensorSwarm-release.tsrelease` and the 700-byte local
+  `native-model-b` manifest. It reported the signature verified and saved
+  `native-model-b · v1` to the private recipient inbox. Filesystem readback
+  found one record and confirmed byte-for-byte equality with both source files.
+  The active library remained at 2 models; no model bytes were fetched. The
+  pre-fix UI showed `0 / 1` manifest matches because both recipient summary
+  paths passed an empty manifest list. A regression test reproduced this and
+  now requires `1 / 1` for save and inbox readback; the implementation
+  summarizes against the verified supplied/stored manifest. The focused test,
+  `cargo fmt --all -- --check`, `cargo check -p ts-desktop`,
+  `cargo build -p ts-desktop`, and all 21 Windows `ts-desktop` tests pass. On
+  2026-09-28, the corrected recipient-summary changes were applied to the
+  test-owned Deepin source mirror. Remote `cargo fmt --all -- --check`,
+  `cargo test -p ts-desktop --offline` (20 passed), and
+  `cargo build -p ts-desktop --release --offline` succeeded; the release binary
+  SHA-256 is `6ef37646b2f85f2e5a4b8744c013d17a92d631fb706109ed116194853dd8a8d2`.
+  Replaying the existing bundle/700-byte manifest showed `1 / 1` matching local
+  manifest roots. The UI rejected a wrong 696-byte manifest and a one-byte-
+  tampered bundle, saying no new record was saved; the visible errors identified
+  a signed-manifest mismatch and Ed25519 verification failure. Filesystem
+  readback remained one inbox record (715-byte bundle, 700-byte manifest) and
+  two active-library manifests. No artifact bytes were fetched. The executable
+  ran from the test source mirror, not an installed DEB; the test process exited,
+  its loopback listeners disappeared, and prior browser focus was restored.
+  M7-03 remains open for Linux Secret Service/native package/tray acceptance;
+  the independent-user M7-06 transfer also remains open.
 - Closed a signed-release export no-clobber gap: the native picker path used
   `fs::write`, which could truncate an existing target if it appeared after
   picker confirmation. Export now writes and fsyncs a unique same-directory
@@ -223,14 +280,13 @@ Post-MVP limitations and deferred work:
 
 ## Recommended next slice
 
-Continue with packaged multi-model UI readback (M6-09), then live signed-release
-export/import and private two-user exchange (M7-03/M7-06). The current-source
-Deepin DEB now launches from an extracted package and passes live health/auth
-readback, but installation/removal, visible UI/import/prepare, and tray acceptance
-remain open. Package installation is sudo-gated. Public directory/rendezvous work
-remains blocked on the M7-02 legal and operational gates. Headless daemon use
-remains optional; transparent proxy rewriting and broader P2 features stay
-deferred.
+Run M7-06 with an independent user/identity and a hash/byte-verified artifact
+transfer from a reachable TensorSwarm peer; the current Deepin UI smoke verified
+signed metadata receipt only, not peer fetch. Then continue with M6-09 selected-
+model UI and M6-08 native Linux install/removal, Secret Service, and tray
+acceptance. Public directory/rendezvous remains blocked on M7-02 legal and
+operational gates. Headless daemon use remains optional; transparent proxy
+rewriting and broader P2 features stay deferred.
 
 ## Product direction update — 2026-09-23
 
@@ -1114,3 +1170,223 @@ handoff check-in and its one retry. No work was blocked by the reporting channel
 - Pushed `master` to `origin`. `git ls-remote` read back the exact pushed
   commit `bf5ce6f0257073b4891b9b7845a47d9887b30adb`; local ahead/behind is
   0/0. The only remaining working-tree item is untracked `scripts/`.
+
+## 2026-10-03 — Live three-machine LAN download and re-seeding
+
+- Owner clarified the beta acceptance target: a desktop at one Internet location
+  seeds a model, a desktop at another downloads/prepares it, and the recipient
+  serves it to a third peer after the original seed stops. UI polish is secondary
+  to this working flow. The machines used today share one LAN; this run does
+  not close Internet, native desktop recipient, or independent-user acceptance.
+- Preserved pre-existing changes in this file, `TASKS.md`, and
+  `desktop/src-tauri/src/main.rs`, plus untracked `scripts/`. Local source HEAD
+  was `b73d961`. Deepin's original checkout was clean at `9f62701` and was not
+  edited. An archive of current tracked working-tree files was built in an
+  isolated Deepin source mirror; no signing credential or real model was copied.
+- Windows: `cargo build -p ts-cli --locked --offline` passed. Deepin: Cargo
+  1.98.1, native kernel 6.6.155-amd64-desktop-hwe, GLIBC 2.38;
+  `CARGO_TARGET_DIR=<test-root>/target ~/.cargo/bin/cargo build -p ts-cli
+  --locked --offline` passed in 2m23s. The Linux CLI used only libgcc_s, libm,
+  and libc and ran successfully on Mint (GLIBC 2.39); no Rust installation or
+  system package change was needed on Mint. Ubuntu WSL2 was running but was
+  not used as a peer in this run.
+- A scratch Rust helper generated a valid synthetic U8 Safetensors file,
+  8,388,686 bytes including its header, with one tensor/eight 1 MiB chunks.
+  It built a manifest, populated the Windows sender CAS through
+  `ObjectStore::put_verified`, and signed metadata with public deterministic
+  TEST key `[41; 32]` (not a device/publisher credential). Release ID:
+  `f465d36dae4023433f5b2514aea8ab9cd534d2872e36ce7b6e052696b8f3e24a`.
+  Only `model.tswarm`, `release.tsrelease`, and `share-uri.txt` went to recipients
+  before download; source payload and sender CAS were not copied to them.
+- Live commands, with host addresses and peer IDs supplied from node readback:
+  `ts-cli node model.tswarm sender-store` on Windows;
+  `ts-cli verify-release release.tsrelease model.tswarm <exact-share-uri>` and
+  `ts-cli receive-release release.tsrelease model.tswarm inbox <exact-share-uri>`
+  on each Linux recipient;
+  `ts-cli fetch-received inbox/<release-id> <windows-peer> <windows-tcp-address>
+  recipient-store downloaded.safetensors` on Deepin. These passed and Deepin
+  had eight hash-named CAS objects. Then `ts-cli node model.tswarm recipient-store`
+  on Deepin exposed that downloaded inventory. Stopped only the identified
+  Windows test PID and confirmed its listener was gone before Mint ran
+  `ts-cli fetch-received inbox/<release-id> <deepin-peer> <deepin-tcp-address>
+  recipient-store downloaded.safetensors`. Mint passed with eight verified objects.
+- Read back both Linux outputs to Windows and compared every byte using
+  `[System.Linq.Enumerable]::SequenceEqual[byte]`; both equal the source, length
+  8,388,686. All source/download/offline/resumed SHA-256 values:
+  `1788d92a73e01541536871fb48db6b88bfa3aaaea2a3c0cb851b3b10d71b2d72`.
+- Mint adversarial live checks: wrong share identifier and one-byte modified
+  signed bundle each exited 1 and created no receipt; existing output exited 1
+  and retained its sentinel bytes; a corrupt cached chunk exited 1 with an
+  object-hash mismatch and created no prepared output. Terminated only a
+  test-owned downloader after one verified object; no prepared file existed.
+  Rerunning `fetch-received` against its partial cache completed all eight
+  verified objects and produced byte-identical output. No sibling materialization
+  staging directories remained. A process killed during CAS insertion can leave
+  a `.tmp-*` staging file; it is not a hash-addressed verified object. The first
+  test helper incorrectly counted this as an object and failed its count check;
+  corrected the helper to count 64-character hash names and reran in fresh
+  scratch paths successfully. No product repair was needed for that assertion.
+- Stopped the exact Deepin test PID after checking its working directory and
+  confirmed its TCP listener disappeared. With both serving nodes stopped,
+  both recipients ran `fetch-received` with their full caches and unavailable
+  former seed addresses, prepared `offline.safetensors`, and passed `cmp` and
+  SHA-256 checks. No Windows `ts-cli` process remained.
+- Discovered a separate CLI limitation: `ts-cli verify downloaded.safetensors
+  model.tswarm` exits 1 (`manifest root mismatch`) for this valid 1 MiB-chunk
+  manifest because the command rebuilds using a hardcoded 16 MiB chunk size.
+  The P2P/CAS checks and independent complete-file byte comparisons passed;
+  do not treat this failed extra CLI command as a passed verification. Fix and
+  regression coverage remain open.
+- Evidence layers: unit/integration suites were not rerun (no implementation
+  edits); e2e/live are real Windows -> Deepin -> Mint CLI processes, signed
+  metadata binding, CAS verification, full-file readback, rejection, interruption,
+  re-seeding, offline reuse, and listener cleanup. No GUI, package install,
+  credential-store, WAN/NAT, public discovery, or independent operator acceptance
+  is claimed. No commit or push. Task-owned scratch/logs remain in ignored
+  `target/lan-20261003` locally and `.cache/tensorswarm-lan-20261003` on each Linux
+  host; no test serving process remains. Machine addresses stay out of tracked docs.
+
+## 2026-10-03 — Desktop private download implementation and native acceptance
+
+- Added explicit-peer recipient download primitives in `ts-daemon::download`;
+  Tauri selects a native output path and manages one cancellable job while Rust
+  engine crates own networking, verification, and storage. Signed inbox receipt,
+  immutable ID, single-file recipe, peer/address, cache hash/length, and library
+  compatibility are rechecked before publication. Progress counts verified
+  durable chunks. A separate per-manifest cache preserves partial progress.
+- Complete-file preparation stages beside the chosen output, parses the actual
+  model container, compares tensor metadata and canonical tensor hashes, then
+  commits with a no-replace hard link. This accepts nondefault chunk layouts
+  without rebuilding a root with default chunks. The exact received manifest
+  and verified bytes enter the library through the existing import lock and
+  runtime restart. Existing control authentication/origin boundaries remain.
+- Exposed current local listener addresses through authenticated `/v1/peers` and
+  the desktop Peers & sources screen. Added recipient selection, peer/address
+  inputs, progress, failure/cancel/retry states. Polling updates controls without
+  recreating receipt rows. Native review found CSP-blocked inline styling in
+  receipt/progress presentation; moved the relevant styles into CSS. Manifest
+  roots now render/copy as hex rather than comma-separated byte arrays.
+- Unit/integration: `cargo fmt --all -- --check`, `cargo check --workspace
+  --offline`, `cargo test --workspace --offline`, and `git diff --check` passed.
+  Daemon suite: 11 tests plus 5 independent-process tests; desktop: 24 tests.
+  New real libp2p integration covers missing-chunk fetch with a preverified
+  partial cache, complete-file byte comparison, recipient re-seeding after
+  original shutdown, offline cache reuse, corrupt cache refusal, and cancellation
+  after one commit. Adversarial tests cover malformed peers/layout, existing
+  output preservation, false tensor identity, tampered receipt, conflicting
+  library paths, and exclusive job start. A test fixture initially assigned a
+  raw array to `Hash32`; corrected the test type and recipe references, then
+  reran the focused suite successfully. No product behavior was weakened.
+- Build: `cargo tauri build --debug --no-bundle --config <scratch-config>` passed
+  twice after final implementation and presentation edits. Extracted inline
+  JavaScript passed `node --check`. The test app used identifier
+  `org.tensorswarm.downloadtest20261003`; no default profile or signing
+  credential was modified. No package install, key creation, commit, or push.
+- Live native Windows: current debug app started with empty library and online
+  engine. Native pickers saved the deterministic TEST-key signed release and
+  matching 1 MiB-chunk manifest, showing 1/1 metadata match. Invalid peer was
+  rejected before output selection. Save-picker UI automation's `set_value`
+  changed the display without updating the dialog's selected output; the app
+  refused the resulting existing destination with zero chunks fetched and kept
+  the source intact. Actual click/select/type input resolved the picker state.
+  The earlier Computer Use run was stopped by physical Escape; owner explicitly
+  authorized retry, and the updated helper completed this run.
+- Deepin SSH was unavailable. Mint's test CLI seed started from its previously
+  verified recipient CAS in isolated `.cache/tensorswarm-lan-20261003`. Its
+  wildcard TCP listener existed, but direct Windows TCP connection timed out;
+  the native job exhausted retries, published no output or library entry, and
+  displayed the error. A temporary loopback SSH forward to that same listener
+  allowed native retry. This is tunnel-assisted transport evidence, not direct
+  incoming LAN or Internet acceptance. No firewall/router settings changed.
+- The native job completed 8/8 verified chunks, prepared
+  `target/lan-20261003/native-received.safetensors`, activated one library model,
+  and read back online engine plus 100%/Verified availability. Readback found
+  eight download-cache objects and the exact received library manifest. Full
+  `[System.Linq.Enumerable]::SequenceEqual[byte]` against the source passed;
+  both lengths are 8,388,686 and SHA-256 is
+  `1788d92a73e01541536871fb48db6b88bfa3aaaea2a3c0cb851b3b10d71b2d72`.
+- Stopped the identified Mint seed after checking `/proc/<pid>/cwd`; its TCP
+  listener disappeared. Then a fresh Mint `desktop-third-store` used
+  `ts-cli fetch-received` with the Windows desktop's UI-read peer ID and direct
+  LAN TCP address. It fetched all eight chunks and prepared
+  `desktop-third.safetensors`; remote `cmp`, SHA-256, and local full-byte readback
+  in `target/lan-20261003/native-third.safetensors` all matched. This proves the
+  desktop recipient serves the downloaded model after the original seed stops.
+  The third peer is a separate CLI process/cache on the original Linux host,
+  not a third native desktop or independent operator.
+- Stopped the isolated Windows test process, rebuilt/copy-launched the updated
+  app against the same profile, and read back persistent signed inbox, one model,
+  eight verified chunks, 100% availability, online engine, and readable hex root.
+  The temporary SSH tunnel was closed. Same-operator native Windows + Linux CLI
+  e2e/live acceptance is established; native Linux desktop recipient, native
+  desktop-to-desktop, independent-user/key-holder pilot, direct incoming network
+  reachability, and separate-Internet/router/NAT acceptance remain open.
+- Limitations: private download caches have no quota/automatic cleanup; libraries
+  require one artifact format and reject filename conflicts; hard-link support
+  is required at the output. The separate CLI `verify` nondefault-chunk bug remains
+  open. Pre-existing dirty work and untracked `scripts/` were preserved.
+- Final cleanup: stopped the rebuilt isolated Windows test process; no test
+  control/proxy/tunnel listener remained. Deepin became reachable on the final
+  cleanup check, so its earlier test seed was identified by exact command and
+  working directory and stopped; its TCP listener disappeared. Task-owned
+  synthetic files, profiles, and logs remain for review. No test seed is left
+  running on either reachable Linux host.
+
+## 2026-10-03 — Accountless Cloudflare TCP relay acceptance
+
+- Owner proposed a temporary Quick Tunnel. The initial assumption that TCP required a Cloudflare account/domain was disproved by live acceptance: `cloudflared tunnel --no-autoupdate --url tcp://127.0.0.1:<seed-port>` returned a temporary hostname, and `cloudflared access tcp --hostname <temporary-hostname> --url 127.0.0.1:<bridge-port>` carried the actual libp2p connection. No account, domain, or application transport change was needed.
+- Windows used the current local `target/debug/ts-cli.exe`; Mint used the previously built isolated Linux CLI. Windows downloaded the official standalone cloudflared 2026.9.3 into ignored `target/wan-20261003`; Mint already had cloudflared 2025.8.1. Its pre-existing unrelated HTTP tunnel was preserved.
+- Started Windows `ts-cli node` over the synthetic eight-chunk fixture and verified sender CAS. Exposed only its peer TCP listener, not the daemon control API or model HTTP proxy. Mint ran the client bridge and `ts-cli fetch-received` with the exact signed inbox ID and sender peer ID into a previously absent `.cache/tensorswarm-wan-20261003/recipient-store`. Download/preparation succeeded; eight verified objects were read back. Remote `cmp` against the previously byte-verified fixture output passed.
+- Stopped the original Windows node and confirmed its TCP listener was absent. Started a Mint node using only the new recipient cache, exposed it through a second TCP Quick Tunnel, and ran a Windows client bridge. A fresh Windows signed inbox and `third-store` fetched and prepared the model through the second tunnel. Full `[System.Linq.Enumerable]::SequenceEqual[byte]` against the original source returned True; eight objects were read back. Both complete outputs have SHA-256 `1788d92a73e01541536871fb48db6b88bfa3aaaea2a3c0cb851b3b10d71b2d72`.
+- E2e/live: actual Windows -> Cloudflare -> Mint transfer, followed by Mint -> Cloudflare -> fresh Windows peer after original seed shutdown. All peer addresses supplied to downloaders were loopback client bridges; no direct LAN peer address was used. Machines remain on the same LAN: this proves external relay transport, not separate-network/router/NAT or independent-user acceptance. CLI peers were used; native desktop Cloudflare transfer remains open. No new adversarial cases or unit/integration suites were run because no source behavior changed.
+- Closed Windows node/tunnels and SSH sessions. SSH closure left three test-owned remote processes; checked their exact command lines and stopped only those PIDs. Mint peer/bridge listeners disappeared; Windows original-seed/client-bridge listeners were absent. Preserved the unrelated Mint HTTP tunnel. Scratch outputs remain for review. No system service, firewall/router change, commit, or push.
+
+## 2026-10-03 — Native Windows desktop through Cloudflare
+
+- Built current source with `cargo tauri build --debug --no-bundle --config <ignored WAN desktop config>`; passed. The first config write used the wrong working-directory-relative path and failed before build; corrected it to the absolute scratch path. Used fresh identifier `org.tensorswarm.wantest20261003` and ignored `target/wan-20261003/ts-desktop-wan.exe`; default profile untouched.
+- Computer Use native readback showed empty library and online engine. Native pickers received the deterministic TEST-key signed bundle and matching manifest with exact share identifier, retaining metadata separately. Competing input, stale accessibility geometry, and save-dialog focus required refreshed screenshots and actual filename typing; these were harness issues, not accepted transfer evidence.
+- Mint seeded its verified synthetic cache through an accountless TCP Quick Tunnel. Windows cloudflared client exposed a loopback TCP bridge. Native Download from peer used the Mint peer ID and bridge address, selected a new `desktop-received.safetensors` output, and completed 8/8 verified chunks, 8 MiB, one library model, 100% Verified availability and online engine. Readback found eight download-cache objects. Full source/output SequenceEqual passed; SHA-256 `1788d92a73e01541536871fb48db6b88bfa3aaaea2a3c0cb851b3b10d71b2d72`.
+- Stopped exact original Mint seed and tunnel. First third-peer attempt timed out: Cloudflare origin log reported refused local TCP connection. Closing the exec session that contained the download bridge also terminated the app launched as its child. Relaunched the app separately; a hidden shell launch could not provide native UI readback, so stopped only that identified test process and launched the existing test executable with Computer Use. Native Overview readback showed persisted one model, 100%, 8/8, online. Refreshed peer identity/listener details from native Peers screen rather than reusing pre-restart values.
+- Exposed the restarted desktop peer TCP listener through a new Quick Tunnel. Mint client bridge plus `ts-cli fetch-received` into previously absent `desktop-third-retry-store` succeeded after checking original seed listener absent. Remote cmp/SHA-256 matched; scp readback to ignored local scratch and full source/third-output SequenceEqual passed. This closes the failed harness stage with independent live evidence of desktop re-seeding after original shutdown.
+- Evidence: build passed; no source behavior changed, so unit/integration suites were not rerun. E2e/live establishes Mint CLI -> Cloudflare -> native Windows desktop -> Cloudflare -> independent fresh Mint CLI peer, full-byte equality and native restart persistence. The third peer is a distinct process/cache, not an independent operator or Linux desktop. Both hosts remain on one LAN: separate-network/NAT and native desktop-to-desktop acceptance remain open. Cloudflare is an external harness, not an integrated app feature.
+- Closed task tunnels, identified and stopped remote test bridges left after SSH closure, and stopped only the isolated desktop process. Preserved Mint's unrelated pre-existing HTTP tunnel and retained scratch files/profile for review. No credentials, system service, firewall/router change, commit, or push. Known CLI verify default-chunk bug was inspected but remains unfixed.
+
+## 2026-10-03 — CLI layout verification and beta preparation
+
+- Fixed CLI `verify` false rejection for nondefault chunk sizes. Added read-only `ts-format::verify_model`: root/schema check, parsed container metadata and canonical tensor identities, contiguous exact chunk coverage with checked arithmetic, streaming hash comparison against every supplied range, and comparison with the builder-generated single-file recipe. Local filename may differ. CLI manifest reads now use the existing 64 MiB limit. Alternative recipe encodings remain outside this verifier's scope.
+- Independent CLI-process regression accepts a renamed output with 16-byte chunks and rejects invalid root, gaps, oversized ranges, incomplete coverage, wrong chunk hash, changed literal recipe bytes and changed source payload. Representative Safetensors/GGUF fixture test now also invokes the verifier. Unit/integration: formatter, workspace check/test and build passed; 94 workspace tests. Focused format tests passed after the final test addition. No desktop UI or networking behavior changed in this slice.
+- Live/readback: rebuilt current `ts-cli` and verified retained `target/wan-20261003/desktop-received.safetensors` and `desktop-third-retry.safetensors` against the original eight-chunk/1 MiB `model.tswarm`; both commands exited 0. This closes the original live false-rejection case.
+- Owner selected MIT to match existing LICENSE; changed workspace Cargo metadata from dual-license declaration to MIT. `cargo metadata --offline --no-deps --format-version 1` read back MIT for all eight packages. Added model-artifact and .env ignore rules; `git check-ignore` confirmed model, environment and existing build-output exclusions. Tracked filename inspection found no model artifacts, .env, executable/DEB or private key files. A common private-key/GitHub-token/AWS-access-ID pattern scan excluding build/Git/untracked scripts returned no matches; this is a limited pattern check, not a full security/history/dependency audit.
+- Added `docs/private-beta.md` with native recipient steps, verified Cloudflare TCP harness commands, re-sharing acceptance, cache/output/format limitations and release gates. README links it. Corrected `docs/demo.md`: manifest generation does not populate a verified seed store; desktop import or an already populated operator store is required.
+- Current Windows NSIS packaging was started; final result follows below. Separate Internet connections, current-package clean-install/download acceptance, native Linux desktop and independent-user gates remain open. No commit, staging, push or GitHub visibility change. All pre-existing dirty work and untracked scripts preserved.
+- Packaging result: `cargo tauri build --bundles nsis` passed; optimized compile took 3m14s and NSIS completed. Artifact `target/release/bundle/nsis/OpenSwarmLayer_0.1.1_x64-setup.exe`, 5,677,788 bytes, SHA-256 `d395fa0b0a53d5a7b5b3f5e05e457d6cca4d788828663d5f74ca57fee43524f4`. Authenticode readback is NotSigned. No install or runtime acceptance is claimed for this newly built package; prior package evidence predates the download changes. No artifact was uploaded or published.
+
+## 2026-10-04 — Isolated current-source Windows package acceptance
+
+- Built on October 3 with `cargo tauri build --bundles nsis --config <ignored acceptance config>`; passed. Configuration changes only the product name, application identifier and window title/geometry. Package `TensorSwarm Beta Acceptance 20261003_0.1.1_x64-setup.exe` SHA-256 is `80b4fa028542b5eaefe55c43fbd3d19486ca1ff1d9533fc2a5c1f2a16b20c956`; installed executable SHA-256 is `1cde23316b53e5917b4ab7001c966245223333d8c97124b466bbec6993b17b45`. The production installer above remains intact; the release executable now carries the acceptance identifier and must not be distributed as the production binary.
+- Silent NSIS install into ignored `target/package-acceptance-20261003/install` exited 0. Distinct uninstall registration and fresh `org.tensorswarm.packageacceptance20261003` profile were verified. Native first launch showed zero library entries/chunks and online engine. Checked synthetic metadata was staged with `ts-cli receive-release`; native Refresh inbox listed it without adding model bytes. This package run does not establish native metadata-picker acceptance, which has earlier debug evidence.
+- Native Download from peer through an accountless Cloudflare TCP bridge completed eight verified 1 MiB chunks, prepared the 8,388,686-byte synthetic Safetensors file and activated one complete library model. Source/output full-byte SequenceEqual passed, and the rebuilt CLI verified the output against the nondefault-chunk manifest. No default installation or profile was modified.
+- On October 4 the installed executable was relaunched independently. Native readback showed persisted one model, eight chunks, 100% availability and online engine. Original Mint test seed was absent. Exposed the current desktop TCP listener with `cloudflared tunnel --no-autoupdate --url tcp://127.0.0.1:<port>`; Mint ran `cloudflared access tcp` and `ts-cli fetch-received` into a previously absent `package-third-store`. Fetch/preparation exited 0; readback found eight objects, remote cmp passed, and scp followed by local full-byte SequenceEqual returned True. Output SHA-256 is `1788d92a73e01541536871fb48db6b88bfa3aaaea2a3c0cb851b3b10d71b2d72`.
+- E2e/live: installed Windows recipient downloaded through an external relay, retained verified state across restart, and re-seeded to a fresh Linux CLI cache after original seed shutdown. Hosts remain on one LAN and one operator controls both. This is not separate-network, independent-user, Linux desktop or desktop-to-desktop acceptance. Owner deferred separate-internet-connection testing to a later friend pilot. Default production-profile install/upgrade and current-package tray behavior remain untested.
+- Cleanup: stopped the exact test bridge and desktop process, preserved Mint's unrelated pre-existing HTTP tunnel, then ran the isolated uninstaller `/S`; exit 0. Test binary/registration and test listeners were absent; default installation binary/registration remained present. Test profile, fixture outputs and logs remain for review. No recursive scratch deletion or system configuration change.
+- Unit/integration: no runtime source changes in this package slice; prior formatter, check, 94 workspace tests and build remain the source evidence. Documentation reconciled to these live results. No staging, commit, push, upload or GitHub visibility change; pre-existing dirty work and untracked scripts preserved.
+
+## 2026-10-04 — Plain-language beta introduction
+
+- Owner requested a more human repository description and README with clear usage instructions and explicit technical-test status. Rewrote README around purpose, developer/tester setup, signing-key creation, sender export, recipient download, re-sharing verification and current limits. Retained links to detailed evidence, architecture, roadmap and CLI/proxy documentation rather than reproducing the development history at the entry point.
+- Updated the GitHub description with `gh repo edit SPhillips1337/OpenSwarmLayer --description ...`; readback matched: "Share LLM model files between computers, then share them onward. A technical test beta built with Rust and Tauri; not ready for public release." Readback confirms the repository remains private.
+- Checked README steps against current UI labels and build configuration; all relative file links resolve and `git diff --check` passed. Documentation only; no runtime tests rerun. README changes remain local alongside the existing uncommitted implementation. No staging, commit, source push, installer upload or visibility change.
+
+## 2026-10-04 — Versioned beta install scripts
+
+- Owner requested tagged file releases and curl/PowerShell-style installation. Added root `install.ps1` (Windows x64, PowerShell 5.1+) and `install.sh` (Debian/Ubuntu-family Linux amd64). Defaults pin proposed `v0.1.1-beta.1`; alternate beta tags are validated. Scripts download exact named packages plus SHA256SUMS, require a unique matching checksum, and invoke the native installer only after verification. Download-only modes retain verified packages. Failed/unverified downloads are removed. No automatic latest selection, credential handling, app launch, service or firewall configuration.
+- Windows uses the normal NSIS UI and reports unsigned status; Linux uses apt/sudo and declares incomplete native Linux acceptance. No Linux package is newly built or accepted here. Checksums come from the same release, so are corruption/mismatch checks rather than independent signatures. Added line-ending attributes for shell/PowerShell files, README links and docs/releasing.md with asset naming, annotated beta tags, draft pre-release workflow, checksums, exact proposed one-liners and explicit private/unpublished limitations. Architecture/task status updated.
+- Integration/adversarial fixture tests: Windows PowerShell 5.1 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-installers.ps1` passed nine cases; WSL Ubuntu `bash scripts/test-installers.sh` passed nine cases. Both cover success, corrupt/missing/duplicate checksums, unavailable release, installer failure, download-only, unsupported architecture and invalid version. Download/process/package-manager calls were mocked; no package installed. Cleanup checked. Bash syntax and git diff whitespace checks passed. Initial PowerShell mock scope failure was repaired in the test harness; WSL sandbox access required approved escalation. No Rust runtime changes or repeated Rust suite.
+- Live release readback: `gh release list` and REST release count show zero releases; repository remains private. Hosted script downloads and installer e2e are therefore untested. Current implementation is uncommitted; tagging old HEAD would omit the tested sharing flow. Tag creation/package publication remains pending reviewed source commit and release preparation. No staging, commit, tag, push, upload or visibility change. Pre-existing files in untracked scripts were preserved.
+
+## 2026-10-04 — Authorized beta 1 release preparation
+
+- Owner explicitly requested "tag and publish it". Reviewed runtime/source diff and new download orchestration; retained all earlier evidence boundaries. Refreshed origin/master with no upstream divergence. Formatter, workspace check and all 94 tests passed; Windows PowerShell 5.1 and WSL Bash installer fixture tests passed all 18 cases. Limited private-key/GitHub-token/AWS-access-ID pattern scan returned no matches; this does not establish a full history or dependency security audit.
+- Rebuilt using the default Tauri configuration with `cargo tauri build --bundles nsis`; passed in 1m02s plus packaging. This restores the production identifier after isolated acceptance builds. Staged `OpenSwarmLayer-v0.1.1-beta.1-windows-x64-setup.exe` (5,678,246 bytes), install.ps1, install.sh and SHA256SUMS under ignored target/releases/v0.1.1-beta.1. Windows installer SHA-256 `880bf10491259d2568f43b203bd6611524d06239922cf7daab41e693c0f94e3d`; Authenticode remains NotSigned. Earlier production package checksum is historical; this rebuild replaced that bundle output.
+- Release scope is Windows-only, marked technical test pre-release and not ready for public release. No Linux DEB included. Live transfer/install evidence remains the recorded same-source isolated-name/identifier Windows run; default-profile install/upgrade and a newly hosted installer run are not claimed. README and release guide explain authenticated manual downloads, private visibility and unusable anonymous one-liners. Both scripts are included for future accessible releases; Linux cannot install beta 1 because no DEB exists.
+- The intended commit includes reviewed sharing implementation, verifier repair, MIT metadata and beta documentation/install scripts. Only explicit reviewed paths will be staged; pre-existing untracked Deepin scripts remain untouched. Publication result and remote asset readback follow separately. Repository visibility will remain private.

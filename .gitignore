@@ -2,3 +2,7 @@ target/
 fuzz/target/
 .worktrees/
 MCP.local.md
+.env
+.env.*
+*.safetensors
+*.gguf

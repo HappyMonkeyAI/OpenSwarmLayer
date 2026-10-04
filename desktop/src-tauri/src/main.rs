@@ -13,6 +13,7 @@ use tauri::{
 use tauri_plugin_dialog::DialogExt;
 use ts_core::{FileRecipe, Manifest, TensorNode};
 
+mod recipient_download;
 mod release_bundle;
 mod signing_identity;
 
@@ -753,7 +754,7 @@ fn list_received_releases(
             "recipient record is not a directory"
         );
         let path = entry.path();
-        let (signed, _) = inspect_received_release_files(
+        let (signed, manifest) = inspect_received_release_files(
             &path.join("release.tsrelease"),
             &path.join("manifest.tswarm"),
         )
@@ -762,7 +763,10 @@ fn list_received_releases(
             name == hash_hex(signed.release_id()?),
             "recipient record ID does not match its signed release"
         );
-        summaries.push(release_bundle::summarize(&signed, &[])?);
+        summaries.push(release_bundle::summarize(
+            &signed,
+            std::slice::from_ref(&manifest),
+        )?);
     }
     summaries.sort_by(|a, b| a.share_uri.cmp(&b.share_uri));
     Ok(summaries)
@@ -794,7 +798,7 @@ fn receive_signed_release_files(
     if let Some(uri) = expected_uri {
         ts_core::ModelShareLink::parse(uri)?.verify_release(&signed)?;
     }
-    let summary = release_bundle::summarize(&signed, &[])?;
+    let summary = release_bundle::summarize(&signed, std::slice::from_ref(&manifest))?;
     let inbox = app_data.join("models").join("inbox");
     let record = inbox.join(hash_hex(signed.release_id()?));
     let signed_bytes = signed.to_bytes()?;
@@ -929,7 +933,10 @@ fn main() {
             export_signed_model_release,
             import_signed_model_release,
             receive_signed_model_release,
-            list_received_model_releases
+            list_received_model_releases,
+            recipient_download::download_received_model,
+            recipient_download::private_download_status,
+            recipient_download::cancel_private_download
         ])
         .setup(|app| {
             let app_data = app.path().app_data_dir()?;
@@ -941,6 +948,7 @@ fn main() {
                 auth_token: uuid::Uuid::new_v4().to_string(),
             };
             app.manage(session.clone());
+            app.manage(Arc::new(recipient_download::DownloadManager::default()));
             app.manage(Arc::new(signing_identity::SigningIdentityManager::default()));
             let runtime_config = ts_daemon::RuntimeConfig {
                 control_bind: "127.0.0.1:9090".into(),
@@ -1132,6 +1140,7 @@ mod tests {
             receive_signed_release_files(&app_data, &bundle_path, &manifest_path, Some(&uri))
                 .unwrap();
         assert_eq!(summary.share_uri, uri);
+        assert_eq!(summary.local_manifest_matches, 1);
         let record = inbox.join(hash_hex(signed.release_id().unwrap()));
         assert_eq!(
             std::fs::read(record.join("manifest.tswarm")).unwrap(),
@@ -1157,6 +1166,8 @@ mod tests {
         let received = list_received_releases(&app_data).unwrap();
         assert_eq!(received.len(), 2);
         assert!(received.iter().any(|item| item.share_uri == uri));
+        let received_summary = received.iter().find(|item| item.share_uri == uri).unwrap();
+        assert_eq!(received_summary.local_manifest_matches, 1);
         assert!(received.iter().any(|item| item.share_uri
             == ts_core::ModelShareLink::for_release(&second)
                 .unwrap()

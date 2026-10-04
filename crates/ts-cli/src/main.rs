@@ -486,10 +486,11 @@ async fn main() -> Result<()> {
         Some("verify") => {
             let path = PathBuf::from(args.next().context("missing model path")?);
             let manifest_path = PathBuf::from(args.next().context("missing manifest path")?);
-            let expected: ts_core::Manifest = serde_cbor::from_slice(&fs::read(&manifest_path)?)?;
-            let actual = ts_format::build_manifest(&path, 16 * 1024 * 1024)?;
-            anyhow::ensure!(expected.root == actual.root, "manifest root mismatch");
-            anyhow::ensure!(expected.verify_root(), "manifest self-check failed");
+            let expected: ts_core::Manifest = serde_cbor::from_slice(&read_bounded(
+                &manifest_path,
+                MAX_RECEIVED_MANIFEST_BYTES,
+            )?)?;
+            ts_format::verify_model(&path, &expected)?;
             println!("verified {:?}", expected.root);
         }
         Some("diff") => {

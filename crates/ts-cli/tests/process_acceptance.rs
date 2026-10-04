@@ -14,6 +14,66 @@ fn hex(hash: ts_core::Hash32) -> String {
 
 struct NodeGuard(Child);
 
+#[test]
+fn verify_accepts_supplied_chunk_layout_and_rejects_mutations() {
+    let directory = tempfile::tempdir().unwrap();
+    let source = directory.path().join("model.safetensors");
+    let header = br#"{"weight":{"dtype":"U8","shape":[64],"data_offsets":[0,64]}}"#;
+    let mut bytes = (header.len() as u64).to_le_bytes().to_vec();
+    bytes.extend_from_slice(header);
+    bytes.extend(0_u8..64);
+    std::fs::write(&source, &bytes).unwrap();
+    let manifest = ts_format::build_manifest(&source, 16).unwrap();
+    assert_eq!(manifest.tensors[0].chunks.len(), 4);
+    let renamed = directory.path().join("downloaded.safetensors");
+    std::fs::write(&renamed, &bytes).unwrap();
+    let manifest_path = directory.path().join("model.tswarm");
+    let verify = |manifest: &Manifest, should_pass: bool| {
+        std::fs::write(&manifest_path, manifest.to_bytes()).unwrap();
+        let result = Command::new(env!("CARGO_BIN_EXE_ts-cli"))
+            .arg("verify")
+            .arg(&renamed)
+            .arg(&manifest_path)
+            .output()
+            .unwrap();
+        assert_eq!(
+            result.status.success(),
+            should_pass,
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    };
+    verify(&manifest, true);
+    let mut invalid_root = manifest.clone();
+    invalid_root.root = ts_core::Hash32::ZERO;
+    verify(&invalid_root, false);
+    for kind in 0..5 {
+        let mut bad = manifest.clone();
+        match kind {
+            0 => bad.tensors[0].chunks[1].offset += 1,
+            1 => bad.tensors[0].chunks[0].length = u64::MAX,
+            2 => {
+                bad.tensors[0].chunks.pop();
+            }
+            3 => bad.tensors[0].chunks[0].hash = ts_core::Hash32::ZERO,
+            _ => {
+                if let Segment::Literal { bytes, .. } = &mut bad.files[0].segments[0] {
+                    bytes[0] ^= 1;
+                } else {
+                    panic!("fixture needs a literal header")
+                }
+            }
+        }
+        bad.root = bad.compute_root();
+        verify(&bad, false);
+    }
+    let mut changed = bytes.clone();
+    *changed.last_mut().unwrap() ^= 1;
+    std::fs::write(&renamed, changed).unwrap();
+    verify(&manifest, false);
+    assert_eq!(std::fs::read(&source).unwrap(), bytes);
+}
+
 impl Drop for NodeGuard {
     fn drop(&mut self) {
         let _ = self.0.kill();

@@ -76,6 +76,46 @@ async fn daemon_starts_without_a_manifest_for_an_empty_desktop_library() {
             models.json::<serde_json::Value>().await.unwrap(),
             serde_json::json!([])
         );
+        let peers = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let peers = client
+                    .get(format!("{control_url}/v1/peers"))
+                    .bearer_auth("empty-library-token")
+                    .send()
+                    .await
+                    .unwrap()
+                    .json::<serde_json::Value>()
+                    .await
+                    .unwrap();
+                if peers[0]["listen_addresses"]
+                    .as_array()
+                    .is_some_and(|addresses| !addresses.is_empty())
+                {
+                    break peers;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("daemon did not expose its listening addresses");
+        let addresses = peers[0]["listen_addresses"].as_array().unwrap();
+        assert!(addresses
+            .iter()
+            .any(|address| address.as_str().unwrap().contains("/tcp/")));
+        assert!(peers[0]["peer_id"]
+            .as_str()
+            .unwrap()
+            .parse::<libp2p::PeerId>()
+            .is_ok());
+        assert_eq!(
+            client
+                .get(format!("{control_url}/v1/peers"))
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            reqwest::StatusCode::UNAUTHORIZED
+        );
     }
     drop(child);
     result.expect("daemon without a manifest did not become healthy");

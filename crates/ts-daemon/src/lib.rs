@@ -1,5 +1,7 @@
 //! Local control surface for the long-running TensorSwarm runtime.
 
+pub mod download;
+
 use axum::extract::State;
 use axum::http::{header, Method, Request, StatusCode};
 use axum::middleware::{self, Next};
@@ -20,6 +22,7 @@ pub struct DaemonState {
     pub store_root: PathBuf,
     manifest: Arc<ts_core::Manifest>,
     peer_id: Arc<str>,
+    listen_addresses: ts_p2p::ListenAddresses,
     control_bind: Arc<str>,
     proxy_bind: Arc<str>,
     origin_url: Arc<str>,
@@ -51,6 +54,7 @@ impl DaemonState {
                 Vec::new(),
             )),
             peer_id: Arc::from("not_started"),
+            listen_addresses: Arc::new(std::sync::Mutex::new(Vec::new())),
             control_bind: Arc::from("not_started"),
             proxy_bind: Arc::from("not_started"),
             origin_url: Arc::from("not_configured"),
@@ -163,6 +167,7 @@ struct RepairPayload {
 struct PeerPayload {
     peer_id: String,
     status: String,
+    listen_addresses: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -425,6 +430,11 @@ fn internal_error(error: impl std::fmt::Display) -> (StatusCode, String) {
 async fn peers(State(state): State<DaemonState>) -> Json<Vec<PeerPayload>> {
     Json(vec![PeerPayload {
         peer_id: state.peer_id.to_string(),
+        listen_addresses: state
+            .listen_addresses
+            .lock()
+            .map(|addresses| addresses.iter().map(ToString::to_string).collect())
+            .unwrap_or_default(),
         status: if state.peer_id.as_ref() == "not_started" {
             "not_started".into()
         } else {
@@ -610,12 +620,14 @@ async fn serve_runtime_with_swarm(
         .with_settings(&config.control_bind, &config.proxy_bind, &config.origin_url)
         .running();
     let mut service_tasks = tokio::task::JoinSet::new();
+    let listen_addresses = state.listen_addresses.clone();
     service_tasks.spawn(async move {
-        ts_p2p::run_lan_node_with_provider_and_events(
+        ts_p2p::run_lan_node_with_provider_and_listeners(
             &mut swarm,
             provider,
             &mut listen_tx,
             Some(&mut publish_rx),
+            Some(listen_addresses),
         )
         .await
     });

@@ -129,10 +129,10 @@ hash-keyed DHT is a peer-discovery mechanism, not the model-search directory.
 |---|---:|---|---|---|
 | M7-01 | P1 | Specify a versioned model card, repository/release descriptor, and artifact-variant schema. | M6-07 | DONE — `ts-core` now defines versioned cards/releases, model metadata, license claims, mixed-format variants, multi-file shard references, and descriptor validation. Parsed vs publisher-declared origin is explicit but untrusted remotely; catalog review status is separate. Tests cover round-trip, unknown fields, invalid paths/shards/schema, mixed variants, and a fixed legacy manifest root. |
 | M7-02 | P1 | Approve rights, abuse, and privacy requirements before public publishing. | M7-01 | IN_PROGRESS — Owner approved the draft's product-policy direction (non-model media excluded, affirmative redistribution basis, explicit-content models excluded by default). Public publishing remains BLOCKED pending qualified legal review, operational owner/coverage, and final retention/response decisions; no enforcement is implemented. |
-| M7-03 | P1 | Add signed release descriptors and portable share-link export/import. | M7-01; explicit owner authorization for local-only slice | IN_PROGRESS — `ts-core` signs bounded CBOR releases and `ts-desktop` uses an OS credential store for an explicit device-local key, exposes a public fingerprint, signs/exports `.tsrelease` bundles, and previews signature-verified imports with local-manifest metadata matching. Windows workspace check/test/build, Windows Tauri debug build, and Ubuntu WSL workspace checks pass. Current Windows `cargo test --workspace` passes, including 21 desktop tests. Signed-bundle export stages/readbacks and commits without replacement; regression test covers existing-destination preservation and cleanup. On 2026-09-27, an isolated Windows debug app returned `/healthz` 200 and imported a synthetic 198-byte Safetensors fixture; the library showed 1/1 verified chunks. Settings showed an existing signing identity Ready; no key was created. Native save pickers exported the selected model's `.tswarm` manifest and signed `.tsrelease` bundle. `ts-cli verify-release` exited 0 with the manifest and optional share identifier. Native import preview reported a verified signature and 1/1 matching local manifest roots; preview was not saved to a catalog and did not verify model bytes. Native recipient pickers accepted the matching bundle/manifest and identifier, saved metadata-only receipt outside the active library, and the receipt remained visible after an isolated app restart while the active library still contained only the fixture. The exact process and test-owned profiles/scratch were removed; the default app profile remained. M7-03 remains open for adversarial live UI cases and Linux Secret Service/native packaging acceptance. No key backup/recovery/rotation, URI handler, resolver, directory, or network fetch; signatures do not prove identity, rights, safety, or policy review. M7-02 legal/operational gates continue to block public publishing. |
+| M7-03 | P1 | Add signed release descriptors and portable share-link export/import. | M7-01; explicit owner authorization for local-only slice | IN_PROGRESS — `ts-core` signs bounded CBOR releases and `ts-desktop` uses an OS credential store for an explicit device-local key, exposes a public fingerprint, signs/exports `.tsrelease` bundles, and previews signature-verified imports with local-manifest metadata matching. Windows workspace check/test/build, Windows Tauri debug build, and Ubuntu WSL workspace checks pass. Current Windows `cargo test --workspace` passes, including 21 desktop tests. Signed-bundle export stages/readbacks and commits without replacement; regression test covers existing-destination preservation and cleanup. On 2026-09-27, an isolated Windows debug app returned `/healthz` 200 and imported a synthetic 198-byte Safetensors fixture; the library showed 1/1 verified chunks. Settings showed an existing signing identity Ready; no key was created. Native save pickers exported the selected model's `.tswarm` manifest and signed `.tsrelease` bundle. `ts-cli verify-release` exited 0 with the manifest and optional share identifier. Native import preview reported a verified signature and 1/1 matching local manifest roots; preview was not saved to a catalog and did not verify model bytes. Native recipient pickers accepted the matching bundle/manifest and identifier, saved metadata-only receipt outside the active library, and the receipt remained visible after an isolated app restart while the active library still contained only the fixture. The exact process and test-owned profiles/scratch were removed; the default app profile remained. On 2026-09-27, the extracted Deepin app exported a signed test bundle; Ubuntu WSL2 `ts-cli verify-release` accepted its matching manifest and rejected a wrong manifest, modified signature, and wrong share identifier. On 2026-09-28, the extracted Deepin recipient UI accepted the matching 715-byte signed bundle and 700-byte Safetensors manifest, reported the signature verified, saved the metadata-only inbox receipt, and retained the two-model active library; filesystem readback matched both source files byte-for-byte. The pre-fix binary displayed 0/1 because recipient summaries used an empty manifest list; regression tests require 1/1 on save and inbox readback. On 2026-09-28, the corrected summary changes were applied to the test-owned Deepin source mirror; remote format check passed, all 20 `ts-desktop` tests passed with `--offline`, and `cargo build -p ts-desktop --release --offline` succeeded (binary SHA-256 `6ef37646b2f85f2e5a4b8744c013d17a92d631fb706109ed116194853dd8a8d2`). The updated UI showed 1/1 when reimporting the existing 715-byte bundle with the matching 700-byte manifest. It rejected a wrong 696-byte manifest and a one-byte-tampered bundle, with no new record saved in either case. Readback remained one inbox record and two active-library manifests; the test app exited and its listeners disappeared. No artifact bytes were fetched; this is same-operator/same-host metadata evidence, not the independent-user pilot. M7-03 remains open for Linux Secret Service/native DEB/tray acceptance; M7-06 remains open for the independent-user transfer. No key backup/recovery/rotation, URI handler, resolver, directory, or network fetch; signatures do not prove identity, rights, safety, or policy review. M7-02 legal/operational gates continue to block public publishing. |
 | M7-04 | P1 | Pilot a searchable model directory and peer-rendezvous service. | M7-02, M7-03 | Search by card metadata returns eligible releases; provider leases are keyed to descriptor/artifact roots, expire, and are rate-limited. The service stores listings/peer hints, not model bytes. Two independent users publish, discover, and fetch a permitted synthetic model with verified chunks. Delisted records stop appearing and new announcements are rejected. |
 | M7-05 | P2 | Evaluate registry federation and public DHT/relay discovery. | M7-04 | Document privacy and revocation limits, provide compatible interoperability tests, and keep direct peer transfer available. Do not promise recall or universal takedown of cached P2P bytes. |
-| M7-06 | P1 | Pilot private, file-mediated descriptor/manifest exchange between two independent users before Internet discovery. | M7-03 | IN_PROGRESS — `ts-cli verify-release` checks a bounded signed bundle against a separately supplied root-verified single-file manifest and optional immutable share identifier. Desktop exports the selected library model's `.tswarm` manifest and the native recipient action now has Windows isolated-debug evidence for bundle/manifest selection, exact identifier binding, metadata-only inbox receipt, and UI readback after app restart; the active library remained unchanged and no bytes were fetched. `ts-cli receive-release` saves checked metadata to a separate inbox; `ts-cli fetch-received` rechecks the record and fetches hash-verified chunks from an explicitly supplied peer into a separate cache, then materializes the file. Independent-process acceptance proves byte-equal output, offline cache reuse and rejection of wrong record ID, corrupted cache, and manifest. On 2026-09-27, a 130-byte synthetic Safetensors fixture was exchanged from the Windows host to Deepin 25 using a deterministic test signing key: Linux CLI receipt, explicit-peer fetch, wrong-identifier rejection, offline cache reuse after sender shutdown, and byte-exact SHA-256 readback passed. That is same-operator two-host evidence; the required independent-user pilot, independent key holder, and native Linux acceptance remain open. No automatic peer discovery or public resolver. |
+| M7-06 | P1 | Pilot private, file-mediated descriptor/manifest exchange between two independent users before Internet discovery. | M7-03 | IN_PROGRESS — `ts-cli verify-release` checks a bounded signed bundle against a separately supplied root-verified single-file manifest and optional immutable share identifier. Desktop exports the selected library model's `.tswarm` manifest and the native recipient action now has Windows isolated-debug evidence for bundle/manifest selection, exact identifier binding, metadata-only inbox receipt, and UI readback after app restart; the active library remained unchanged and no bytes were fetched. `ts-cli receive-release` saves checked metadata to a separate inbox; `ts-cli fetch-received` rechecks the record and fetches hash-verified chunks from an explicitly supplied peer into a separate cache, then materializes the file. Independent-process acceptance proves byte-equal output, offline cache reuse and rejection of wrong record ID, corrupted cache, and manifest. On 2026-09-27, a 130-byte synthetic Safetensors fixture was exchanged from the Windows host to Deepin 25 using a deterministic test signing key: Linux CLI receipt, explicit-peer fetch, wrong-identifier rejection, offline cache reuse after sender shutdown, and byte-exact SHA-256 readback passed. Ubuntu WSL2 on 2026-09-27 also accepted a signed metadata-only receipt into an isolated inbox and read back the exact bundle and manifest; the Linux CLI rejected a wrong identifier. WSL reached the extracted desktop's P2P listener, but the current desktop library was empty, so no WSL chunk fetch was performed. On 2026-10-03, live Windows -> Deepin -> Mint CLI acceptance transferred an 8,388,686-byte synthetic Safetensors file in eight chunks. Windows stopped before Mint fetched from Deepin; both outputs compared byte-for-byte to the source. Mint rejection cases, interrupted-download resume, and both recipients offline cache preparation passed. Test nodes/listeners were stopped. This is same-operator LAN evidence; desktop recipient download, Internet reachability, the required independent-user pilot, independent key holder, and native Linux acceptance remain open. No automatic peer discovery or public resolver. |
 
 ## Deferred Backlog
 
@@ -151,3 +151,96 @@ hash-keyed DHT is a peer-discovery mechanism, not the model-search directory.
   the standard desktop install must not need to start a daemon in a terminal or
   install an OS service. Headless daemon operation remains supported as an
   optional server/operator path. The UI must not duplicate P2P or storage logic.
+
+## Follow-up from the 2026-10-03 live sharing test
+
+- `P1` Desktop private recipient download and re-seeding: accept an explicit peer
+  ID/address for a checked inbox record, show real transfer progress/error/cancel
+  state, prepare only verified bytes without overwriting a destination, and make
+  the downloaded model available through the desktop-owned Rust serving engine.
+  Acceptance requires native desktop-to-desktop download and a third peer fetching
+  after the original publisher stops. Keep private testing separate from public
+  directory/rendezvous publishing gates.
+  IN_PROGRESS: Rust daemon download primitives and Tauri orchestration/UI now
+  implement explicit-peer fetching, verified progress, cancellation/retry,
+  no-replace preparation with real-container/tensor-identity checks, and exact
+  received-manifest activation through the existing serving engine. The sender's
+  current peer/listener details are exposed by the authenticated API and UI.
+  Daemon live-peer integration and desktop activation/adversarial tests pass.
+  On 2026-10-03, an isolated native Windows debug app saved the signed receipt,
+  rejected an invalid peer and an existing destination, reported a direct Mint
+  TCP timeout without publishing a model, then downloaded/prepared the eight
+  chunks through a temporary SSH tunnel. Complete output was byte-identical.
+  After the Mint seed stopped, a fresh Mint CLI cache fetched all eight chunks
+  directly from the Windows desktop and prepared byte-identical output. The
+  received manifest/inbox and 100% availability survived a rebuilt app restart.
+  Native Linux desktop-to-desktop and separate-Internet acceptance remain open;
+  the tunnel-assisted incoming leg does not prove direct LAN/WAN reachability.
+- `P1` Private WAN acceptance: run the desktop transfer/re-seeding flow on separate
+  Internet connections and record router/NAT/port-forwarding requirements. Same-LAN
+  addresses and SSH orchestration alone do not establish Internet reachability.
+- `P1` CLI `verify` chunk-layout compatibility: verify against the supplied
+  manifest layout rather than silently rebuilding with the 16 MiB default.
+  Regression must accept a valid nondefault-chunk manifest and reject changed
+  source bytes, malformed layout, or an invalid manifest root. The 2026-10-03
+  fixture used 1 MiB chunks and exposed the current false rejection.
+  DONE (2026-10-03): `ts-format::verify_model` checks the supplied chunk
+  coverage/hashes, canonical tensor identities and builder-generated single-file
+  recipe, allowing a renamed local output. CLI manifests are size-bounded.
+  Independent-process regression rejects payload/root/layout/hash/recipe
+  mutations. Current CLI verified both retained Cloudflare desktop outputs
+  against the original 1 MiB-chunk manifest. Workspace checks/tests pass.
+
+### Cloudflare relay evidence (2026-10-03)
+
+Private WAN acceptance remains IN_PROGRESS. Accountless TCP Quick Tunnels carried
+an eight-chunk synthetic model between Windows and Mint CLI peers using fresh
+caches. After the original Windows seed stopped, Mint re-seeded through a second
+Quick Tunnel to a fresh Windows peer; complete output matched every source byte.
+See PROGRESS.md for commands and cleanup. Later native Windows desktop relay
+acceptance is recorded below; separate Internet connections and independent-user
+acceptance remain open.
+
+### Native Windows Cloudflare acceptance (2026-10-03)
+
+Private recipient transfer now has native Windows debug acceptance through an
+accountless Cloudflare TCP Quick Tunnel using a fresh profile/cache. Native UI
+reported 8/8 chunks, complete verified library activation and online engine.
+After the original Mint seed stopped and the desktop restarted, a fresh Mint CLI
+peer fetched byte-identical output from the desktop through another Quick Tunnel.
+Separate-network, Linux desktop, desktop-to-desktop and independent-user gates
+remain open. See PROGRESS.md for the initial harness failure, repair, and readback.
+
+### Beta preparation (2026-10-03)
+
+CLI chunk-layout verification is fixed and current retained desktop/third-peer
+outputs verify against the original nondefault-chunk manifest. Workspace checks,
+94 tests and build passed. Owner selected MIT; all package metadata now matches
+LICENSE. A current unsigned Windows NSIS installer built successfully; checksum
+and size are in PROGRESS.md. `docs/private-beta.md` documents the tested flow.
+Isolated current-source Windows installer clean-install/download acceptance is
+recorded below. Separate-network testing and native Linux remain open. Source
+and artifacts are local; no commit or push.
+
+### Isolated Windows package acceptance (2026-10-04)
+
+DONE for the distinct-name/identifier NSIS acceptance package: silent install,
+empty native first launch, native eight-chunk Cloudflare download and library
+activation, full-byte output comparison, restart persistence, re-sharing to a
+fresh Mint CLI cache after original seed shutdown, and silent uninstall readback.
+Existing default installation and test profile were preserved. Metadata was
+staged through CLI in this package test; native pickers have earlier debug
+evidence. Production default-profile install/upgrade, current-package tray,
+native Linux desktop and independent-user acceptance remain open. The owner
+deferred separate-internet-connection testing to a later friend pilot.
+
+### Tagged beta installer preparation (2026-10-04)
+
+IN_PROGRESS: root install.ps1/install.sh download explicit beta-tag assets and
+require a unique matching SHA-256 before invoking the native installer. Offline
+fixture tests cover successful/download-only flows and fail-closed boundaries.
+docs/releasing.md defines tag/asset/checksum names and pre-release workflow.
+Owner authorized tagging/publication on 2026-10-04. First release is Windows-only
+v0.1.1-beta.1; see PROGRESS.md for publication/readback status. Hosted script
+installation, production-profile upgrade and native Linux package acceptance
+remain open; the repository is private, so anonymous script downloads cannot run.

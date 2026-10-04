@@ -13,15 +13,23 @@ cargo test --workspace
 
 ## Build a manifest and seed a node
 
-Create a supported GGUF or Safetensors model as `model.safetensors`, then create a
-manifest and a verified object store:
+Import a supported GGUF or Safetensors model using the desktop first; wait for
+100% verified availability and an online engine. Export its selected manifest
+as `model.tswarm`. The desktop engine is the sender and already has verified
+chunk inventory. Read its current peer ID and TCP address from Peers & sources.
+See [private-beta.md](private-beta.md) for the recipient workflow.
+
+For CLI-only operators who already have a populated verified object store:
 
 ```text
-target/debug/ts-cli manifest model.safetensors model.tswarm
 target/debug/ts-cli node model.tswarm .tswarm-cache
 ```
 
-The node publishes the manifest and tensor provider keys and listens on its libp2p
+Generating a manifest does not populate the object store. An empty store cannot
+seed model chunks. Do not start an additional CLI sender against the desktop's
+live cache for this demo.
+
+The CLI node publishes the manifest and tensor provider keys and listens on its libp2p
 TCP and QUIC addresses. Record the peer ID and a reachable listen address from the
 node output.
 

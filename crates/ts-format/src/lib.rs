@@ -152,6 +152,85 @@ pub fn build_manifest(path: impl AsRef<Path>, chunk_size: u64) -> Result<Manifes
     ))
 }
 
+/// Verify a single model against its supplied chunk layout and file recipe.
+/// The local filename may differ from the manifest's distribution filename.
+pub fn verify_model(path: impl AsRef<Path>, expected: &Manifest) -> Result<()> {
+    ensure!(expected.verify_root(), "manifest self-check failed");
+    ensure!(
+        expected.schema == ts_core::MANIFEST_SCHEMA_V1,
+        "unsupported manifest schema"
+    );
+    ensure!(
+        expected.files.len() == 1,
+        "verification requires a single-file manifest"
+    );
+    let path = path.as_ref();
+    let index = inspect(path)?;
+    let mut actual = build_manifest(path, 16 * 1024 * 1024)?;
+    ensure!(
+        actual.format == expected.format && actual.file_size == expected.file_size,
+        "model format or file size differs from manifest"
+    );
+    ensure!(
+        actual.tensors.len() == expected.tensors.len(),
+        "tensor count differs from manifest"
+    );
+    let mut file = File::open(path)?;
+    let mut buffer = vec![0_u8; 1024 * 1024];
+    for (node, supplied) in actual.tensors.iter_mut().zip(&expected.tensors) {
+        ensure!(
+            node.descriptor == supplied.descriptor && node.tensor_hash == supplied.tensor_hash,
+            "tensor identity differs from manifest"
+        );
+        let range = index
+            .tensors
+            .iter()
+            .find(|range| range.descriptor == node.descriptor)
+            .context("missing source tensor")?;
+        let mut cursor = 0_u64;
+        for (position, chunk) in supplied.chunks.iter().enumerate() {
+            ensure!(
+                usize::try_from(chunk.index)? == position
+                    && chunk.offset == cursor
+                    && chunk.length > 0,
+                "invalid chunk layout"
+            );
+            cursor = cursor
+                .checked_add(chunk.length)
+                .context("chunk range overflow")?;
+            ensure!(cursor <= range.length, "chunk range exceeds tensor");
+            file.seek(SeekFrom::Start(
+                range
+                    .offset
+                    .checked_add(chunk.offset)
+                    .context("source offset overflow")?,
+            ))?;
+            let mut remaining = chunk.length;
+            let mut hash = HashWriter::default();
+            while remaining > 0 {
+                let wanted = remaining.min(buffer.len() as u64) as usize;
+                file.read_exact(&mut buffer[..wanted])?;
+                hash.update(&buffer[..wanted]);
+                remaining -= wanted as u64;
+            }
+            ensure!(
+                hash.finalize() == chunk.hash,
+                "chunk hash differs from manifest"
+            );
+        }
+        ensure!(cursor == range.length, "chunks do not cover tensor");
+        node.chunks = supplied.chunks.clone();
+    }
+    actual.files[0].path = expected.files[0].path.clone();
+    ensure!(
+        actual.files == expected.files,
+        "file recipe differs from source"
+    );
+    actual.root = actual.compute_root();
+    ensure!(actual.root == expected.root, "manifest differs from source");
+    Ok(())
+}
+
 fn build_file_recipe_segments(
     file: &mut File,
     index: &ModelIndex,
@@ -536,6 +615,10 @@ mod tests {
         assert_eq!(gguf_index.tensors[0].descriptor.name, "x");
         assert_eq!(gguf_index.tensors[0].offset, 128);
         assert_eq!(gguf_index.tensors[0].length, 8);
+        for path in [&safetensors_path, &gguf_path] {
+            let manifest = build_manifest(path, 32).unwrap();
+            verify_model(path, &manifest).unwrap();
+        }
     }
 
     #[test]

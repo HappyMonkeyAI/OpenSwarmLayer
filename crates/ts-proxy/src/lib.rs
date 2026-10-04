@@ -335,7 +335,7 @@ impl FetchEngine {
     }
 }
 
-fn validate_manifest_recipe(manifest: &Manifest) -> anyhow::Result<&ts_core::FileRecipe> {
+pub fn validate_manifest_recipe(manifest: &Manifest) -> anyhow::Result<&ts_core::FileRecipe> {
     anyhow::ensure!(manifest.verify_root(), "manifest self-check failed");
     let recipe = manifest
         .files

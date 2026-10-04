@@ -39,6 +39,13 @@ HTTP request
 
 Objects are stored by content hash. Materialized files and resumable state are derived views over manifests and verified objects.
 
+Standalone model verification lives in `ts-format::verify_model`. The CLI reads
+a bounded manifest, checks its root/schema, checks canonical tensor identities
+against the parsed source, hashes each supplied contiguous chunk range, and
+compares the builder-generated single-file recipe. Local output filenames may
+differ from distribution filenames. Alternate recipe encodings are outside this
+verifier's current scope; it does not write cache objects or prepared output.
+
 ## Networking
 
 The MVP is LAN-first: authenticated libp2p connections, mDNS discovery, and a small request/response protocol. NAT traversal, public relays, and WebRTC are later layers.
@@ -48,6 +55,26 @@ provider. `LanClient` and the fetch-only CLI manifest proxy do not serve inbound
 chunk requests, so successful downloads must not create provider announcements.
 
 ## Desktop runtime
+
+Private recipient downloads use Tauri commands for native output selection and
+job orchestration over `ts-daemon::download`; all libp2p traffic and verified
+storage remain in Rust engine crates. A single cancellable job rechecks the
+signed inbox receipt, validates the explicit peer/address and manifest recipe,
+and fetches missing chunks into `models/download-cache/<manifest-root>`.
+Cached chunks are hash/length checked on every retry. The fetch-only swarm does
+not serve or announce providers. Progress counts durable verified chunks only.
+Preparation uses a sibling staging directory, parses the actual container,
+checks tensor metadata and canonical tensor identities independently of chunk
+size, and commits by no-replace hard link. Library activation runs under the
+existing import lock, rechecks catalog compatibility, promotes verified chunks,
+persists the exact received manifest and runtime catalog, then restarts the
+existing serving engine. Completion indicates library activation; the operator
+must read back online engine/model availability before claiming re-seeding.
+Cancellation stops fetching but is disabled once preparation starts; retries
+reuse verified partial caches, which survive app restart. There is no download
+cache quota/garbage collection yet. The authenticated `/v1/peers` response also
+reports the runtime's current local libp2p listener addresses for explicit-peer
+exchange; these are not a claim of remote or Internet reachability.
 
 The Tauri desktop application starts and supervises the local Rust engine as
 part of the application lifecycle. Tauri does not implement a second networking
@@ -110,3 +137,23 @@ readback is verified for the Windows debug and WSLg packaged-DEB runs. Windows
 packaged close/background and native tray-menu Quit are accepted. A native
 Deepin DEB passed metadata/content/dependency checks, but install and live
 runtime/tray acceptance remain open; see `TASKS.md`.
+
+### Temporary TCP relay testing
+
+Beta distribution uses explicit versioned GitHub pre-release assets, separate
+from model-sharing metadata. Root `install.ps1`/`install.sh` select a beta tag,
+download the platform package and SHA256SUMS, require one matching hash, and
+invoke the native installer only after verification. They do not configure
+networking or engine services. Checksums share the release's trust boundary;
+they are not independent signatures. See `docs/releasing.md` for asset naming,
+private-repository limitations and the reviewed-commit/tag workflow.
+
+A 2026-10-03 live CLI test carried the existing libp2p protocol through accountless
+Cloudflare Quick Tunnels without changing TensorSwarm transport code. On the seed,
+run `cloudflared tunnel --no-autoupdate --url tcp://127.0.0.1:<peer-tcp-port>`.
+On the recipient, run `cloudflared access tcp --hostname <returned-hostname>
+--url 127.0.0.1:<local-bridge-port>` and supply that loopback bridge multiaddress
+plus the seed's exact peer ID to TensorSwarm. The tunnel exposes only the test
+peer listener. Keep the authenticated control API private. This is an external
+test harness, not integrated discovery, automatic NAT traversal, or a production
+relay service. Same-LAN relay testing does not close separate-network acceptance.
