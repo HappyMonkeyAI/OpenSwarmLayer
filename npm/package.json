@@ -1,6 +1,6 @@
 {
   "name": "openswarmlayer",
-  "version": "0.1.1-beta.1",
+  "version": "0.1.1-beta.2",
   "description": "Install the OpenSwarmLayer native model-sharing app. Technical test beta; not ready for production.",
   "license": "MIT",
   "engines": { "node": ">=20" },
@@ -10,9 +10,9 @@
     "test": "node --test test/*.test.cjs",
     "prepublishOnly": "npm test"
   },
-  "repository": { "type": "git", "url": "git+https://github.com/SPhillips1337/OpenSwarmLayer.git", "directory": "npm" },
-  "homepage": "https://github.com/SPhillips1337/OpenSwarmLayer#readme",
-  "bugs": { "url": "https://github.com/SPhillips1337/OpenSwarmLayer/issues" },
+  "repository": { "type": "git", "url": "git+https://github.com/HappyMonkeyAI/OpenSwarmLayer.git", "directory": "npm" },
+  "homepage": "https://github.com/HappyMonkeyAI/OpenSwarmLayer#readme",
+  "bugs": { "url": "https://github.com/HappyMonkeyAI/OpenSwarmLayer/issues" },
   "keywords": ["llm", "gguf", "safetensors", "p2p", "tauri", "beta"],
   "publishConfig": { "access": "public", "tag": "beta", "registry": "https://registry.npmjs.org/" }
 }

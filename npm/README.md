@@ -14,7 +14,7 @@ Registry publication is pending authenticated maintainer access. Until then,
 use the npm tarball on the GitHub beta release:
 
 ```sh
-npx --package=https://github.com/SPhillips1337/OpenSwarmLayer/releases/download/v0.1.1-beta.1/openswarmlayer-0.1.1-beta.1.tgz openswarmlayer install
+npx --package=https://github.com/HappyMonkeyAI/OpenSwarmLayer/releases/download/v0.1.1-beta.1/openswarmlayer-0.1.1-beta.2.tgz openswarmlayer install
 ```
 
 Replace `install` with `download` to fetch without installing, or with `--help`
@@ -49,6 +49,6 @@ Current native release: `v0.1.1-beta.1`, source
 independently; it does not rebuild the native app. Publish beta builds with
 `npm publish --tag beta`, keeping the stable `latest` channel unset.
 
-See the [project README](https://github.com/SPhillips1337/OpenSwarmLayer#readme)
+See the [project README](https://github.com/HappyMonkeyAI/OpenSwarmLayer#readme)
 for importing, downloading and re-sharing GGUF/Safetensors models. Software
 license is MIT; model files retain their own licenses.

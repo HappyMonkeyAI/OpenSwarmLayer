@@ -40,7 +40,7 @@ does not run its model-sharing engine. The wrapper is available as a tarball
 on the GitHub beta release:
 
 ```sh
-npx --package=https://github.com/SPhillips1337/OpenSwarmLayer/releases/download/v0.1.1-beta.1/openswarmlayer-0.1.1-beta.1.tgz openswarmlayer install
+npx --package=https://github.com/HappyMonkeyAI/OpenSwarmLayer/releases/download/v0.1.1-beta.1/openswarmlayer-0.1.1-beta.2.tgz openswarmlayer install
 ```
 
 Use `download` instead of `install` to fetch a verified package without installing.
@@ -52,7 +52,7 @@ The shorter `npx openswarmlayer@beta install` command is **pending npm registry
 publication**, which needs an authenticated maintainer. See
 [the npm wrapper guide](npm/README.md) for details. Platform limits below apply.
 
-The [v0.1.1-beta.1 technical test release](https://github.com/SPhillips1337/OpenSwarmLayer/releases/tag/v0.1.1-beta.1)
+The [v0.1.1-beta.1 technical test release](https://github.com/HappyMonkeyAI/OpenSwarmLayer/releases/tag/v0.1.1-beta.1)
 provides a Windows x64 installer and experimental Linux x64 DEB/AppImage
 packages. Linux builds target Ubuntu 24.04-era systems and
 require glibc 2.39 or newer; they do not support the older Deepin host yet.
@@ -67,13 +67,13 @@ release checklist.
 Windows PowerShell:
 
 ```powershell
-irm https://github.com/SPhillips1337/OpenSwarmLayer/releases/download/v0.1.1-beta.1/install.ps1 | iex
+irm https://github.com/HappyMonkeyAI/OpenSwarmLayer/releases/download/v0.1.1-beta.1/install.ps1 | iex
 ```
 
 Debian/Ubuntu-family Linux x64:
 
 ```sh
-curl --proto '=https' --proto-redir '=https' -fsSL https://github.com/SPhillips1337/OpenSwarmLayer/releases/download/v0.1.1-beta.1/install.sh | bash
+curl --proto '=https' --proto-redir '=https' -fsSL https://github.com/HappyMonkeyAI/OpenSwarmLayer/releases/download/v0.1.1-beta.1/install.sh | bash
 ```
 
 On compatible Debian/Ubuntu-family Linux, install the downloaded DEB with:

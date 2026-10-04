@@ -85,7 +85,7 @@ async function downloadAsset(asset, { fetchImpl = fetch, tempRoot = os.tmpdir() 
   const output = path.join(folder, asset.name);
   let file;
   try {
-    const url = `https://github.com/SPhillips1337/OpenSwarmLayer/releases/download/${release.tag}/${asset.name}`;
+    const url = `https://github.com/HappyMonkeyAI/OpenSwarmLayer/releases/download/${release.tag}/${asset.name}`;
     const response = await releaseResponse(url, fetchImpl);
     if (!response.body) throw new Error('Release download has no body.');
     file = await fs.open(partial, 'wx', 0o600);

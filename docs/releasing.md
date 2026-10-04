@@ -99,13 +99,13 @@ inspect it before execution. The pinned tag makes the selected beta explicit.
 Windows PowerShell:
 
 ```powershell
-irm https://github.com/SPhillips1337/OpenSwarmLayer/releases/download/v0.1.1-beta.1/install.ps1 | iex
+irm https://github.com/HappyMonkeyAI/OpenSwarmLayer/releases/download/v0.1.1-beta.1/install.ps1 | iex
 ```
 
 Debian/Ubuntu-family Linux x64, when the DEB is available:
 
 ```sh
-curl --proto '=https' --proto-redir '=https' -fsSL https://github.com/SPhillips1337/OpenSwarmLayer/releases/download/v0.1.1-beta.1/install.sh | bash
+curl --proto '=https' --proto-redir '=https' -fsSL https://github.com/HappyMonkeyAI/OpenSwarmLayer/releases/download/v0.1.1-beta.1/install.sh | bash
 ```
 
 For inspection and download-only testing, save the script to a new file, read it,
