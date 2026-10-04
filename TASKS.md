@@ -240,7 +240,8 @@ IN_PROGRESS: root install.ps1/install.sh download explicit beta-tag assets and
 require a unique matching SHA-256 before invoking the native installer. Offline
 fixture tests cover successful/download-only flows and fail-closed boundaries.
 docs/releasing.md defines tag/asset/checksum names and pre-release workflow.
-Owner authorized tagging/publication on 2026-10-04. First release is Windows-only
-v0.1.1-beta.1; see PROGRESS.md for publication/readback status. Hosted script
+DONE for tag/publication on 2026-10-04: Windows-only v0.1.1-beta.1 pre-release
+published with installer, scripts and checksums; authenticated download readback
+matched all four uploaded assets. See PROGRESS.md. Hosted script
 installation, production-profile upgrade and native Linux package acceptance
 remain open; the repository is private, so anonymous script downloads cannot run.
