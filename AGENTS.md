@@ -39,3 +39,7 @@ Worker self-report and green unit tests alone are not acceptance. Report evidenc
 ## Adaptive escalation
 
 Use the least expensive adequate reasoning/tooling path. Classify failures before retrying: diagnose environment/flakiness first; make one focused repair for local implementation failures; escalate structural contract or cross-module failures after two unsuccessful repairs. If the escalated pass fails, preserve evidence and re-plan rather than looping.
+
+## Session start and end (Spine)
+If the `spine` MCP is available, call `session_brief(project="OpenSwarmLayer")` (or the absolute path of this repo) first and use `get_section` / `recall` instead of reading PROGRESS.md or CONTEXT.md whole. Without the MCP, run `spine brief` from the repo root. If neither works, ground normally.
+Before you stop, call `checkpoint` with your agent name (e.g. `cursor`), what was done, what's next and any blockers. Save durable why/gotcha/decision facts with `record_memory`.
